@@ -5,7 +5,7 @@
 
 #include "../ui.h"
 
-lv_obj_t *ui_Screen1 = NULL;lv_obj_t *ui_Dropdown1 = NULL;
+lv_obj_t *ui_Screen1 = NULL;lv_obj_t *ui_Dropdown1 = NULL;lv_obj_t *ui_Image1 = NULL;
 // event funtions
 void ui_event_Dropdown1( lv_event_t * e) {
     lv_event_code_t event_code = lv_event_get_code(e);
@@ -30,6 +30,15 @@ lv_obj_set_y( ui_Dropdown1, -81 );
 lv_obj_set_align( ui_Dropdown1, LV_ALIGN_CENTER );
 lv_obj_add_flag( ui_Dropdown1, LV_OBJ_FLAG_SCROLL_ON_FOCUS );   /// Flags
 
+ui_Image1 = lv_img_create(ui_Screen1);
+lv_obj_set_width( ui_Image1, 296);
+lv_obj_set_height( ui_Image1, 222);
+lv_obj_set_x( ui_Image1, -92 );
+lv_obj_set_y( ui_Image1, 0 );
+lv_obj_set_align( ui_Image1, LV_ALIGN_CENTER );
+lv_obj_add_flag( ui_Image1, LV_OBJ_FLAG_ADV_HITTEST );   /// Flags
+lv_obj_clear_flag( ui_Image1, LV_OBJ_FLAG_SCROLLABLE );    /// Flags
+
 lv_obj_add_event_cb(ui_Dropdown1, ui_event_Dropdown1, LV_EVENT_ALL, NULL);
 
 }
@@ -41,5 +50,6 @@ void ui_Screen1_screen_destroy(void)
 // NULL screen variables
 ui_Screen1= NULL;
 ui_Dropdown1= NULL;
+ui_Image1= NULL;
 
 }
