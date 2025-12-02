@@ -9,6 +9,7 @@
 #include "../../../src/utilities.h"
 #include "lvgl.h"
 #include "stdio.h"
+#include "stdlib.h"
 
 lv_obj_t *ui_Screen1 = NULL;
 lv_obj_t *ui_Dropdown1 = NULL;
@@ -18,7 +19,54 @@ lv_obj_t *ui_camera_canvas = NULL;
 lv_timer_t *camera_timer = NULL;
 bool camera_get_photo_flag = false;
 bool camera_led_open_flag = false;
-bool camera_rotation_flag = false;
+bool camera_rotation_flag = true;
+
+static uint8_t *camera_canvas_buf = NULL;
+static size_t camera_canvas_buf_size = 0;
+
+static inline uint16_t swap_rgb565_bytes(uint16_t px)
+{
+    return (px >> 8) | (px << 8);
+}
+
+static bool ensure_camera_canvas_buffer(size_t bytes)
+{
+    if (camera_canvas_buf_size >= bytes)
+    {
+        return true;
+    }
+
+    uint8_t *new_buf = (uint8_t *)realloc(camera_canvas_buf, bytes);
+    if (!new_buf)
+    {
+        return false;
+    }
+
+    camera_canvas_buf = new_buf;
+    camera_canvas_buf_size = bytes;
+    return true;
+}
+
+static void rotate_frame_90_clockwise(uint16_t *dst, const uint16_t *src, size_t width, size_t height)
+{
+    for (size_t y = 0; y < height; y++)
+    {
+        for (size_t x = 0; x < width; x++)
+        {
+            size_t src_idx = y * width + x;
+            size_t dst_idx = x * height + (height - 1 - y);
+            dst[dst_idx] = swap_rgb565_bytes(src[src_idx]);
+        }
+    }
+}
+
+static void copy_frame(uint16_t *dst, const uint16_t *src, size_t pixel_count)
+{
+    for (size_t i = 0; i < pixel_count; i++)
+    {
+        dst[i] = swap_rgb565_bytes(src[i]);
+    }
+}
 
 static void px_swap(uint8_t *a, uint8_t *b)
 {
@@ -36,15 +84,26 @@ static void camera_video_play(lv_timer_t *t)
         sensor_t *s = esp_camera_sensor_get();
         // ESP_LOGI("", "id=%d, w=%d, h=%d, len=%d", s->id.PID, frame->width, frame->height, frame->len);
 
-        if (camera_rotation_flag == true)
+        if (!ensure_camera_canvas_buffer(frame->len))
         {
-            for (int i = 0; i < frame->len / 2; i++)
-            {
-                px_swap(&frame->buf[i], &frame->buf[frame->len - i]);
-            }
+            esp_camera_fb_return(frame);
+            return;
         }
 
-        lv_canvas_set_buffer(ui_camera_canvas, frame->buf, frame->height, frame->width, LV_IMG_CF_TRUE_COLOR);
+        uint16_t *dst_pixels = (uint16_t *)camera_canvas_buf;
+        const uint16_t *src_pixels = (const uint16_t *)frame->buf;
+        size_t pixel_count = frame->len / 2;
+
+        if (camera_rotation_flag)
+        {
+            rotate_frame_90_clockwise(dst_pixels, src_pixels, frame->width, frame->height);
+            lv_canvas_set_buffer(ui_camera_canvas, camera_canvas_buf, frame->height, frame->width, LV_IMG_CF_TRUE_COLOR);
+        }
+        else
+        {
+            copy_frame(dst_pixels, src_pixels, pixel_count);
+            lv_canvas_set_buffer(ui_camera_canvas, camera_canvas_buf, frame->width, frame->height, LV_IMG_CF_TRUE_COLOR);
+        }
 
         if (camera_get_photo_flag)
         {
