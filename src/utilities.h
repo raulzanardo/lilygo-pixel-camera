@@ -15,10 +15,12 @@
 //! The difference between V1.0 and V1.1 is the backlight driver.
 // #define USING_DISPLAY_PRO_V1
 
-#define DISABLE_ALL_LIBRARY_WARNINGS
+
 // LTR553 , TOUCH , SY6970 , Camera share I2C Bus
 #define BOARD_I2C_SDA       5
 #define BOARD_I2C_SCL       6
+
+#define VIBRATING_MOTOR  16
 
 // SD , TFT share SPI Bus
 #define BOARD_SPI_MISO      8
@@ -29,9 +31,10 @@
 #define BOARD_TFT_DC        9
 #define BOARD_TFT_BL        48
 #define BOARD_SD_CS         14
+
 #define BOARD_SENSOR_IRQ    21
 #define BOARD_TOUCH_RST     13
-#define BOARD_TOUCH_IRQ     7
+
 #define BOARD_TFT_WIDTH     222
 #define BOARD_TFT_HEIHT     480
 

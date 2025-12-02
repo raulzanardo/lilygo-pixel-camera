@@ -2,54 +2,131 @@
 // SquareLine Studio version: SquareLine Studio 1.5.4
 // LVGL version: 8.3.11
 // Project name: s3-pro-test
-
+#include <Arduino.h>
 #include "../ui.h"
+#include <esp_camera.h>
+#include "ui.h"
+#include "../../../src/utilities.h"
+#include "lvgl.h"
+#include "stdio.h"
 
-lv_obj_t *ui_Screen1 = NULL;lv_obj_t *ui_Dropdown1 = NULL;lv_obj_t *ui_Image1 = NULL;
+lv_obj_t *ui_Screen1 = NULL;
+lv_obj_t *ui_Dropdown1 = NULL;
+lv_obj_t *ui_Image1 = NULL;
+
+lv_obj_t *ui_camera_canvas = NULL;
+lv_timer_t *camera_timer = NULL;
+bool camera_get_photo_flag = false;
+bool camera_led_open_flag = false;
+bool camera_rotation_flag = false;
+
+static void px_swap(uint8_t *a, uint8_t *b)
+{
+    uint8_t c = *a;
+    *a = *b;
+    *b = c;
+}
+
+static void camera_video_play(lv_timer_t *t)
+{
+    // lv_async_call(cmaera_async_play, NULL);
+    camera_fb_t *frame = esp_camera_fb_get();
+    if (frame)
+    {
+        sensor_t *s = esp_camera_sensor_get();
+        // ESP_LOGI("", "id=%d, w=%d, h=%d, len=%d", s->id.PID, frame->width, frame->height, frame->len);
+
+        if (camera_rotation_flag == true)
+        {
+            for (int i = 0; i < frame->len / 2; i++)
+            {
+                px_swap(&frame->buf[i], &frame->buf[frame->len - i]);
+            }
+        }
+
+        lv_canvas_set_buffer(ui_camera_canvas, frame->buf, frame->height, frame->width, LV_IMG_CF_TRUE_COLOR);
+
+        if (camera_get_photo_flag)
+        {
+            camera_get_photo_flag = false;
+            if (camera_led_open_flag)
+            {
+                // ledcWrite(LEDC_WHITE_CH, 20);
+                // delay(400);
+                // ledcWrite(LEDC_WHITE_CH, 0);
+            }
+
+            // if (sd_card_get_init_flag())
+            // {
+            //     static uint16_t img_idx = 1000;
+            //     char path[32];
+            //     lv_snprintf(path, 32, "%s%s%d%s", TARGET_FOLDER, "/img", img_idx++, ".bmp");
+            //     // sd_card_write(path, frame->buf, frame->len);
+            //     // sd_card_bmp_img(path, frame->width, frame->height, frame->buf);
+            //     sd_card_bmp_lvgl(path, frame->width, frame->height, ui_camera_canvas);
+            // }
+            // else
+            // {
+            //     Serial.println("No find SD card!");
+            //     prompt_info("No find SD card!", UI_PROMPT_TIME);
+            // }
+        }
+        esp_camera_fb_return(frame);
+    }
+}
+
 // event funtions
-void ui_event_Dropdown1( lv_event_t * e) {
+void ui_event_Dropdown1(lv_event_t *e)
+{
     lv_event_code_t event_code = lv_event_get_code(e);
 
-if ( event_code == LV_EVENT_VALUE_CHANGED) {
-      changeState( e );
-}
+    if (event_code == LV_EVENT_VALUE_CHANGED)
+    {
+        changeState(e);
+    }
 }
 
 // build funtions
 
 void ui_Screen1_screen_init(void)
 {
-ui_Screen1 = lv_obj_create(NULL);
-lv_obj_clear_flag( ui_Screen1, LV_OBJ_FLAG_SCROLLABLE );    /// Flags
+    ui_Screen1 = lv_obj_create(NULL);
+    lv_obj_clear_flag(ui_Screen1, LV_OBJ_FLAG_SCROLLABLE); /// Flags
 
-ui_Dropdown1 = lv_dropdown_create(ui_Screen1);
-lv_obj_set_width( ui_Dropdown1, 150);
-lv_obj_set_height( ui_Dropdown1, LV_SIZE_CONTENT);   /// 1
-lv_obj_set_x( ui_Dropdown1, 151 );
-lv_obj_set_y( ui_Dropdown1, -81 );
-lv_obj_set_align( ui_Dropdown1, LV_ALIGN_CENTER );
-lv_obj_add_flag( ui_Dropdown1, LV_OBJ_FLAG_SCROLL_ON_FOCUS );   /// Flags
+    ui_Dropdown1 = lv_dropdown_create(ui_Screen1);
+    lv_obj_set_width(ui_Dropdown1, 150);
+    lv_obj_set_height(ui_Dropdown1, LV_SIZE_CONTENT); /// 1
+    lv_obj_set_x(ui_Dropdown1, 151);
+    lv_obj_set_y(ui_Dropdown1, -81);
+    lv_obj_set_align(ui_Dropdown1, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_Dropdown1, LV_OBJ_FLAG_SCROLL_ON_FOCUS); /// Flags
+    lv_obj_add_event_cb(ui_Dropdown1, ui_event_Dropdown1, LV_EVENT_ALL, NULL);
 
-ui_Image1 = lv_img_create(ui_Screen1);
-lv_obj_set_width( ui_Image1, 296);
-lv_obj_set_height( ui_Image1, 222);
-lv_obj_set_x( ui_Image1, -92 );
-lv_obj_set_y( ui_Image1, 0 );
-lv_obj_set_align( ui_Image1, LV_ALIGN_CENTER );
-lv_obj_add_flag( ui_Image1, LV_OBJ_FLAG_ADV_HITTEST );   /// Flags
-lv_obj_clear_flag( ui_Image1, LV_OBJ_FLAG_SCROLLABLE );    /// Flags
+    ui_camera_canvas = lv_img_create(ui_Screen1);
+    lv_obj_set_width(ui_camera_canvas, 296);
+    lv_obj_set_height(ui_camera_canvas, 222);
+    lv_obj_set_x(ui_camera_canvas, -92);
+    lv_obj_set_y(ui_camera_canvas, 0);
+    lv_obj_set_align(ui_camera_canvas, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_camera_canvas, LV_OBJ_FLAG_ADV_HITTEST);  /// Flags
+    lv_obj_clear_flag(ui_camera_canvas, LV_OBJ_FLAG_SCROLLABLE); /// Flags
 
-lv_obj_add_event_cb(ui_Dropdown1, ui_event_Dropdown1, LV_EVENT_ALL, NULL);
+    // ui_camera_canvas = lv_canvas_create(ui_Screen1);
+    // lv_obj_align(ui_camera_canvas, LV_ALIGN_CENTER, 0, -80);
 
+    camera_timer = lv_timer_create(camera_video_play, 50, NULL);
+    lv_timer_ready(camera_timer);
+    lv_timer_pause(camera_timer);
+    lv_timer_resume(camera_timer);
 }
 
 void ui_Screen1_screen_destroy(void)
 {
-   if (ui_Screen1) lv_obj_del(ui_Screen1);
+    if (ui_Screen1)
+        lv_obj_del(ui_Screen1);
 
-// NULL screen variables
-ui_Screen1= NULL;
-ui_Dropdown1= NULL;
-ui_Image1= NULL;
-
+    // NULL screen variables
+    ui_Screen1 = NULL;
+    ui_Dropdown1 = NULL;
+    ui_Image1 = NULL;
 }
