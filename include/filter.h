@@ -2,9 +2,8 @@
 #define FILTER_H
 
 #include <Arduino.h>
-#include <M5CoreS3.h>
-#include <M5Unified.h>
-#include <M5GFX.h>
+#include <esp_camera.h>
+
 
 // Helper functions
 int colorDistance(uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t g2, uint8_t b2);

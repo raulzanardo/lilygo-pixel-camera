@@ -63,13 +63,15 @@ void _ui_arc_increment( lv_obj_t *target, int val)
 void _ui_bar_increment( lv_obj_t *target, int val, int anm) 
 {
    int old = lv_bar_get_value(target);
-   lv_bar_set_value(target, old+val, anm);
+   lv_anim_enable_t anim = anm ? LV_ANIM_ON : LV_ANIM_OFF;
+   lv_bar_set_value(target, old+val, anim);
 }
 
 void _ui_slider_increment( lv_obj_t *target, int val, int anm) 
 {
    int old = lv_slider_get_value(target);
-   lv_slider_set_value(target, old+val, anm);
+   lv_anim_enable_t anim = anm ? LV_ANIM_ON : LV_ANIM_OFF;
+   lv_slider_set_value(target, old+val, anim);
    lv_event_send(target,LV_EVENT_VALUE_CHANGED, 0);
 }
 
@@ -112,7 +114,7 @@ typedef void (*screen_destroy_cb_t)(void);
 void scr_unloaded_delete_cb(lv_event_t * e)
 {
    // Get the destroy callback from user_data
-    screen_destroy_cb_t destroy_cb = lv_event_get_user_data(e);
+    screen_destroy_cb_t destroy_cb = (screen_destroy_cb_t)lv_event_get_user_data(e);
     if(destroy_cb) {
         destroy_cb();  // call the specific screen destroy function
     }

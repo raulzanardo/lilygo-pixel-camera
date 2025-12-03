@@ -18,6 +18,7 @@ extern void ui_event_Dropdown1( lv_event_t * e);
 extern lv_obj_t *ui_Dropdown1;
 extern lv_obj_t *ui_Image1;
 // CUSTOM VARIABLES
+void ui_set_filter_mode(int mode);
 
 #ifdef __cplusplus
 } /*extern "C"*/

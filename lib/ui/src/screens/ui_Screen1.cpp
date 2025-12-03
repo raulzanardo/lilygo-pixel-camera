@@ -10,6 +10,8 @@
 #include "lvgl.h"
 #include "stdio.h"
 #include "stdlib.h"
+#include "../../../../include/filter.h"
+#include "../../../../include/palettes.h"
 
 lv_obj_t *ui_Screen1 = NULL;
 lv_obj_t *ui_Dropdown1 = NULL;
@@ -20,6 +22,16 @@ lv_timer_t *camera_timer = NULL;
 bool camera_get_photo_flag = false;
 bool camera_led_open_flag = false;
 bool camera_rotation_flag = true;
+
+typedef enum
+{
+    CAMERA_FILTER_NONE = 0,
+    CAMERA_FILTER_PIXELATE,
+    CAMERA_FILTER_DITHER,
+    CAMERA_FILTER_EDGE
+} camera_filter_t;
+
+static camera_filter_t current_filter = CAMERA_FILTER_NONE;
 
 static uint8_t *camera_canvas_buf = NULL;
 static size_t camera_canvas_buf_size = 0;
@@ -75,6 +87,34 @@ static void px_swap(uint8_t *a, uint8_t *b)
     *b = c;
 }
 
+static void apply_selected_filter(camera_fb_t *frame)
+{
+    switch (current_filter)
+    {
+    case CAMERA_FILTER_PIXELATE:
+        applyPixelate(frame, 8, false);
+        break;
+    case CAMERA_FILTER_DITHER:
+        applyColorPalette( (uint16_t *)frame->buf, frame->width, frame->height, PALETTE_CYBERPUNK, PALETTE_CYBERPUNK_SIZE, 1, 2, 2);
+        break;
+    case CAMERA_FILTER_EDGE:
+        applyEdgeDetection(frame, 1);
+        break;
+    case CAMERA_FILTER_NONE:
+    default:
+        break;
+    }
+}
+
+void ui_set_filter_mode(int mode)
+{
+    if (mode < CAMERA_FILTER_NONE || mode > CAMERA_FILTER_EDGE)
+    {
+        mode = CAMERA_FILTER_NONE;
+    }
+    current_filter = (camera_filter_t)mode;
+}
+
 static void camera_video_play(lv_timer_t *t)
 {
     // lv_async_call(cmaera_async_play, NULL);
@@ -83,6 +123,8 @@ static void camera_video_play(lv_timer_t *t)
     {
         sensor_t *s = esp_camera_sensor_get();
         // ESP_LOGI("", "id=%d, w=%d, h=%d, len=%d", s->id.PID, frame->width, frame->height, frame->len);
+
+        apply_selected_filter(frame);
 
         if (!ensure_camera_canvas_buffer(frame->len))
         {
@@ -160,6 +202,8 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_align(ui_Dropdown1, LV_ALIGN_CENTER);
     lv_obj_add_flag(ui_Dropdown1, LV_OBJ_FLAG_SCROLL_ON_FOCUS); /// Flags
     lv_obj_add_event_cb(ui_Dropdown1, ui_event_Dropdown1, LV_EVENT_ALL, NULL);
+    lv_dropdown_set_options_static(ui_Dropdown1, "No filter\nPixelate\nDithering\nEdge detect");
+    lv_dropdown_set_selected(ui_Dropdown1, current_filter);
 
     ui_camera_canvas = lv_img_create(ui_Screen1);
     lv_obj_set_width(ui_camera_canvas, 296);

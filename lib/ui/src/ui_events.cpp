@@ -9,11 +9,24 @@
 
 void changeState(lv_event_t *e)
 {
-	// Cast the param to the appropriate type
-	int selected_value = *(int *)e->param;
+	if (!e)
+	{
+		return;
+	}
 
-	// Print the selected value
-	Serial.print("Selected value: ");
-	Serial.println(selected_value);
+	lv_event_code_t code = lv_event_get_code(e);
+	if (code != LV_EVENT_VALUE_CHANGED)
+	{
+		return;
+	}
+
+	lv_obj_t *dropdown = lv_event_get_target(e);
+	if (!dropdown)
+	{
+		return;
+	}
+
+	uint16_t selected_value = lv_dropdown_get_selected(dropdown);
+	ui_set_filter_mode(static_cast<int>(selected_value));
 }
 
