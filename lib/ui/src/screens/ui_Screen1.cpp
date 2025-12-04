@@ -24,6 +24,7 @@ bool camera_get_photo_flag = false;
 bool camera_led_open_flag = true;
 bool camera_rotation_flag = true;
 lv_obj_t *ui_flash_switch = NULL;
+lv_obj_t *ui_gallery_button = NULL;
 
 typedef enum
 {
@@ -292,6 +293,17 @@ void ui_Screen1_screen_init(void)
     }
     lv_obj_add_event_cb(ui_flash_switch, ui_event_FlashSwitch, LV_EVENT_ALL, NULL);
 
+    ui_gallery_button = lv_btn_create(ui_right_panel);
+    lv_obj_set_width(ui_gallery_button, LV_PCT(100));
+    lv_obj_set_height(ui_gallery_button, 40);
+    lv_obj_set_style_bg_color(ui_gallery_button, lv_palette_main(LV_PALETTE_BLUE), 0);
+    lv_obj_set_style_bg_opa(ui_gallery_button, LV_OPA_80, 0);
+    lv_obj_set_style_radius(ui_gallery_button, 8, 0);
+    lv_obj_set_style_text_color(ui_gallery_button, lv_color_white(), 0);
+    lv_obj_t *gallery_label = lv_label_create(ui_gallery_button);
+    lv_label_set_text(gallery_label, "Gallery");
+    lv_obj_center(gallery_label);
+
     ui_camera_canvas = lv_img_create(ui_Screen1);
     lv_obj_set_width(ui_camera_canvas, 296);
     lv_obj_set_height(ui_camera_canvas, 222);
@@ -328,4 +340,9 @@ void ui_Screen1_screen_destroy(void)
     ui_Screen1 = NULL;
     ui_Dropdown1 = NULL;
     ui_Image1 = NULL;
+}
+
+lv_obj_t *ui_get_gallery_button(void)
+{
+    return ui_gallery_button;
 }

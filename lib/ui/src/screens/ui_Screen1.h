@@ -21,6 +21,7 @@ extern lv_obj_t *ui_Image1;
 void ui_set_filter_mode(int mode);
 void ui_set_flash_enabled(bool enabled);
 bool ui_is_flash_enabled(void);
+lv_obj_t *ui_get_gallery_button(void);
 
 #ifdef __cplusplus
 } /*extern "C"*/
