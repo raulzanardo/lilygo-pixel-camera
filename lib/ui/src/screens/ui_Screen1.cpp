@@ -21,8 +21,9 @@ lv_obj_t *ui_fps_label = NULL;
 lv_obj_t *ui_camera_canvas = NULL;
 lv_timer_t *camera_timer = NULL;
 bool camera_get_photo_flag = false;
-bool camera_led_open_flag = false;
+bool camera_led_open_flag = true;
 bool camera_rotation_flag = true;
+lv_obj_t *ui_flash_switch = NULL;
 
 typedef enum
 {
@@ -116,6 +117,27 @@ void ui_set_filter_mode(int mode)
     current_filter = (camera_filter_t)mode;
 }
 
+void ui_set_flash_enabled(bool enabled)
+{
+    camera_led_open_flag = enabled;
+    if (ui_flash_switch)
+    {
+        if (enabled)
+        {
+            lv_obj_add_state(ui_flash_switch, LV_STATE_CHECKED);
+        }
+        else
+        {
+            lv_obj_clear_state(ui_flash_switch, LV_STATE_CHECKED);
+        }
+    }
+}
+
+bool ui_is_flash_enabled(void)
+{
+    return camera_led_open_flag;
+}
+
 static void camera_video_play(lv_timer_t *t)
 {
     // lv_async_call(cmaera_async_play, NULL);
@@ -203,6 +225,23 @@ void ui_event_Dropdown1(lv_event_t *e)
     }
 }
 
+void ui_event_FlashSwitch(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+    {
+        return;
+    }
+
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+    {
+        return;
+    }
+
+    bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+    ui_set_flash_enabled(enabled);
+}
+
 // build funtions
 
 void ui_Screen1_screen_init(void)
@@ -219,15 +258,39 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_style_bg_opa(ui_right_panel, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(ui_right_panel, 0, 0);
     lv_obj_set_style_pad_all(ui_right_panel, 12, 0);
+    lv_obj_set_style_pad_row(ui_right_panel, 12, 0);
+    lv_obj_set_flex_flow(ui_right_panel, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(ui_right_panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
 
     ui_Dropdown1 = lv_dropdown_create(ui_right_panel);
     lv_obj_set_width(ui_Dropdown1, LV_PCT(100));
     lv_obj_set_height(ui_Dropdown1, LV_SIZE_CONTENT); /// 1
-    lv_obj_set_align(ui_Dropdown1, LV_ALIGN_TOP_LEFT);
     lv_obj_add_flag(ui_Dropdown1, LV_OBJ_FLAG_SCROLL_ON_FOCUS); /// Flags
     lv_obj_add_event_cb(ui_Dropdown1, ui_event_Dropdown1, LV_EVENT_ALL, NULL);
     lv_dropdown_set_options_static(ui_Dropdown1, "No filter\nPixelate\nDithering\nEdge detect");
     lv_dropdown_set_selected(ui_Dropdown1, current_filter);
+
+    lv_obj_t *ui_flash_row = lv_obj_create(ui_right_panel);
+    lv_obj_set_width(ui_flash_row, LV_PCT(100));
+    lv_obj_set_height(ui_flash_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(ui_flash_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_flash_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_flash_row, 0, 0);
+    lv_obj_set_style_pad_all(ui_flash_row, 0, 0);
+    lv_obj_set_style_pad_row(ui_flash_row, 8, 0);
+    lv_obj_set_style_pad_column(ui_flash_row, 8, 0);
+    lv_obj_set_flex_flow(ui_flash_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ui_flash_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *flash_label = lv_label_create(ui_flash_row);
+    lv_label_set_text(flash_label, "Flash");
+
+    ui_flash_switch = lv_switch_create(ui_flash_row);
+    if (camera_led_open_flag)
+    {
+        lv_obj_add_state(ui_flash_switch, LV_STATE_CHECKED);
+    }
+    lv_obj_add_event_cb(ui_flash_switch, ui_event_FlashSwitch, LV_EVENT_ALL, NULL);
 
     ui_camera_canvas = lv_img_create(ui_Screen1);
     lv_obj_set_width(ui_camera_canvas, 296);

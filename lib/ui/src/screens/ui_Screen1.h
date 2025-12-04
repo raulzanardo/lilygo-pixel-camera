@@ -19,6 +19,8 @@ extern lv_obj_t *ui_Dropdown1;
 extern lv_obj_t *ui_Image1;
 // CUSTOM VARIABLES
 void ui_set_filter_mode(int mode);
+void ui_set_flash_enabled(bool enabled);
+bool ui_is_flash_enabled(void);
 
 #ifdef __cplusplus
 } /*extern "C"*/
