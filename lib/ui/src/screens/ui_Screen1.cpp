@@ -210,12 +210,20 @@ void ui_Screen1_screen_init(void)
     ui_Screen1 = lv_obj_create(NULL);
     lv_obj_clear_flag(ui_Screen1, LV_OBJ_FLAG_SCROLLABLE); /// Flags
 
-    ui_Dropdown1 = lv_dropdown_create(ui_Screen1);
-    lv_obj_set_width(ui_Dropdown1, 150);
+    lv_obj_t *ui_right_panel = lv_obj_create(ui_Screen1);
+    lv_obj_set_size(ui_right_panel, 240, 222);
+    lv_obj_set_x(ui_right_panel, 240);
+    lv_obj_set_y(ui_right_panel, 0);
+    lv_obj_set_align(ui_right_panel, LV_ALIGN_TOP_LEFT);
+    lv_obj_clear_flag(ui_right_panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_right_panel, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_right_panel, 0, 0);
+    lv_obj_set_style_pad_all(ui_right_panel, 12, 0);
+
+    ui_Dropdown1 = lv_dropdown_create(ui_right_panel);
+    lv_obj_set_width(ui_Dropdown1, LV_PCT(100));
     lv_obj_set_height(ui_Dropdown1, LV_SIZE_CONTENT); /// 1
-    lv_obj_set_x(ui_Dropdown1, 151);
-    lv_obj_set_y(ui_Dropdown1, -81);
-    lv_obj_set_align(ui_Dropdown1, LV_ALIGN_CENTER);
+    lv_obj_set_align(ui_Dropdown1, LV_ALIGN_TOP_LEFT);
     lv_obj_add_flag(ui_Dropdown1, LV_OBJ_FLAG_SCROLL_ON_FOCUS); /// Flags
     lv_obj_add_event_cb(ui_Dropdown1, ui_event_Dropdown1, LV_EVENT_ALL, NULL);
     lv_dropdown_set_options_static(ui_Dropdown1, "No filter\nPixelate\nDithering\nEdge detect");
