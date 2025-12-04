@@ -322,7 +322,7 @@ static void show_photo_preview(const char *filename)
 
         gallery_preview_back_btn = lv_btn_create(gallery_preview_screen);
         lv_obj_set_size(gallery_preview_back_btn, 100, 36);
-        lv_obj_align(gallery_preview_back_btn, LV_ALIGN_BOTTOM_MID, 0, -12);
+        lv_obj_align(gallery_preview_back_btn, LV_ALIGN_TOP_LEFT, 12, 8);
         lv_obj_t *label = lv_label_create(gallery_preview_back_btn);
         lv_label_set_text(label, "Back");
         lv_obj_center(label);
@@ -411,11 +411,11 @@ static void show_gallery_screen()
 
         gallery_list = lv_list_create(gallery_screen);
         lv_obj_set_size(gallery_list, 440, 150);
-        lv_obj_align(gallery_list, LV_ALIGN_CENTER, 0, 0);
+        lv_obj_align(gallery_list, LV_ALIGN_TOP_MID, 0, 50);
 
         lv_obj_t *back_btn = lv_btn_create(gallery_screen);
         lv_obj_set_size(back_btn, 100, 36);
-        lv_obj_align(back_btn, LV_ALIGN_BOTTOM_MID, 0, -12);
+        lv_obj_align(back_btn, LV_ALIGN_TOP_LEFT, 12, 8);
         lv_obj_t *label = lv_label_create(back_btn);
         lv_label_set_text(label, "Back");
         lv_obj_center(label);
