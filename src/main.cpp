@@ -215,6 +215,7 @@ static void back_to_camera_cb(lv_event_t *e)
     {
         return;
     }
+    ui_resume_camera_timer();
     lv_disp_load_scr(ui_Screen1);
 }
 
@@ -345,6 +346,7 @@ static void show_photo_preview(const char *filename)
     }
 
     lv_disp_load_scr(gallery_preview_screen);
+    ui_pause_camera_timer();
 }
 
 static void gallery_item_event_cb(lv_event_t *e)
@@ -424,6 +426,7 @@ static void show_gallery_screen()
     populate_gallery_list();
     lv_disp_load_scr(gallery_screen);
     Serial.println("Gallery screen shown");
+    ui_pause_camera_timer();
 }
 
 static bool ensure_sd_initialized()

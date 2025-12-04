@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include "../ui.h"
 #include <esp_camera.h>
+#include <Preferences.h>
 #include "ui.h"
 #include "../../../src/utilities.h"
 #include "lvgl.h"
@@ -35,6 +36,11 @@ typedef enum
 } camera_filter_t;
 
 static camera_filter_t current_filter = CAMERA_FILTER_NONE;
+static Preferences ui_prefs;
+static bool ui_prefs_ready = false;
+static const char *UI_PREF_NAMESPACE = "ui_state";
+static const char *UI_PREF_FILTER_KEY = "filter_mode";
+static const char *UI_PREF_FLASH_KEY = "flash_enabled";
 
 static uint8_t *camera_canvas_buf = NULL;
 static size_t camera_canvas_buf_size = 0;
@@ -116,6 +122,10 @@ void ui_set_filter_mode(int mode)
         mode = CAMERA_FILTER_NONE;
     }
     current_filter = (camera_filter_t)mode;
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putInt(UI_PREF_FILTER_KEY, current_filter);
+    }
 }
 
 int ui_get_filter_mode(void)
@@ -137,6 +147,10 @@ void ui_set_flash_enabled(bool enabled)
             lv_obj_clear_state(ui_flash_switch, LV_STATE_CHECKED);
         }
     }
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putBool(UI_PREF_FLASH_KEY, enabled);
+    }
 }
 
 bool ui_is_flash_enabled(void)
@@ -147,6 +161,22 @@ bool ui_is_flash_enabled(void)
 bool ui_get_camera_rotation(void)
 {
     return camera_rotation_flag;
+}
+
+void ui_pause_camera_timer(void)
+{
+    if (camera_timer)
+    {
+        lv_timer_pause(camera_timer);
+    }
+}
+
+void ui_resume_camera_timer(void)
+{
+    if (camera_timer)
+    {
+        lv_timer_resume(camera_timer);
+    }
 }
 
 static void camera_video_play(lv_timer_t *t)
@@ -260,6 +290,17 @@ void ui_Screen1_screen_init(void)
     ui_Screen1 = lv_obj_create(NULL);
     lv_obj_clear_flag(ui_Screen1, LV_OBJ_FLAG_SCROLLABLE); /// Flags
 
+    if (!ui_prefs_ready)
+    {
+        ui_prefs_ready = ui_prefs.begin(UI_PREF_NAMESPACE, false);
+        if (ui_prefs_ready)
+        {
+            int stored_filter = ui_prefs.getInt(UI_PREF_FILTER_KEY, current_filter);
+            current_filter = (camera_filter_t)stored_filter;
+            camera_led_open_flag = ui_prefs.getBool(UI_PREF_FLASH_KEY, camera_led_open_flag);
+        }
+    }
+
     lv_obj_t *ui_right_panel = lv_obj_create(ui_Screen1);
     lv_obj_set_size(ui_right_panel, 240, 222);
     lv_obj_set_x(ui_right_panel, 240);
@@ -337,8 +378,6 @@ void ui_Screen1_screen_init(void)
 
     camera_timer = lv_timer_create(camera_video_play, 50, NULL);
     lv_timer_ready(camera_timer);
-    lv_timer_pause(camera_timer);
-    lv_timer_resume(camera_timer);
 }
 
 void ui_Screen1_screen_destroy(void)
