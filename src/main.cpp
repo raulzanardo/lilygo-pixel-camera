@@ -79,9 +79,11 @@ static lv_obj_t *gallery_preview_screen = nullptr;
 static lv_obj_t *gallery_preview_img = nullptr;
 static lv_obj_t *gallery_preview_label = nullptr;
 static lv_obj_t *gallery_preview_back_btn = nullptr;
+static lv_obj_t *gallery_preview_delete_btn = nullptr;
 static lv_img_dsc_t gallery_img_dsc;
 static std::vector<uint8_t> gallery_img_buffer;
 static std::string gallery_img_path;
+static std::string gallery_current_photo_name;
 static bool sd_fs_registered = false;
 
 static bool ensure_sd_initialized();
@@ -208,6 +210,7 @@ static bool list_captured_photos(std::vector<String> &out_names)
 }
 
 static void show_gallery_screen();
+static void delete_photo_cb(lv_event_t *e);
 
 static void back_to_camera_cb(lv_event_t *e)
 {
@@ -327,10 +330,19 @@ static void show_photo_preview(const char *filename)
         lv_label_set_text(label, "Back");
         lv_obj_center(label);
         lv_obj_add_event_cb(gallery_preview_back_btn, back_to_gallery_cb, LV_EVENT_CLICKED, NULL);
+
+        gallery_preview_delete_btn = lv_btn_create(gallery_preview_screen);
+        lv_obj_set_size(gallery_preview_delete_btn, 100, 36);
+        lv_obj_align(gallery_preview_delete_btn, LV_ALIGN_TOP_RIGHT, -12, 8);
+        lv_obj_t *delete_label = lv_label_create(gallery_preview_delete_btn);
+        lv_label_set_text(delete_label, "Delete");
+        lv_obj_center(delete_label);
+        lv_obj_add_event_cb(gallery_preview_delete_btn, delete_photo_cb, LV_EVENT_CLICKED, NULL);
     }
 
     gallery_img_path = "/";
     gallery_img_path += filename;
+    gallery_current_photo_name = filename;
     lv_label_set_text_fmt(gallery_preview_label, "%s", filename);
 
     bool loaded = load_png_to_dsc(gallery_img_path.c_str());
@@ -427,6 +439,44 @@ static void show_gallery_screen()
     lv_disp_load_scr(gallery_screen);
     Serial.println("Gallery screen shown");
     ui_pause_camera_timer();
+}
+
+static void delete_photo_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+
+    if (gallery_current_photo_name.empty())
+    {
+        Serial.println("No photo selected for deletion");
+        return;
+    }
+
+    if (!ensure_sd_initialized())
+    {
+        Serial.println("SD not ready, cannot delete photo");
+        return;
+    }
+
+    std::string path = "/" + gallery_current_photo_name;
+    if (SD.remove(path.c_str()))
+    {
+        Serial.printf("Deleted photo %s\n", path.c_str());
+        gallery_current_photo_name.clear();
+        populate_gallery_list();
+        if (gallery_screen)
+        {
+            lv_disp_load_scr(gallery_screen);
+            ui_pause_camera_timer();
+        }
+    }
+    else
+    {
+        Serial.printf("Failed to delete photo %s\n", path.c_str());
+        lv_label_set_text_fmt(gallery_preview_label, "Delete failed: %s", path.c_str());
+    }
 }
 
 static bool ensure_sd_initialized()
@@ -639,7 +689,10 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
 
 static bool encode_rgb565_png(const char *path, const uint16_t *pixels, uint16_t width, uint16_t height)
 {
-    SD.remove(path);
+    if (SD.exists(path))
+    {
+        SD.remove(path);
+    }
 
     int rc = png_encoder.open(path, png_file_open_cb, png_file_close_cb, png_file_read_cb, png_file_write_cb, png_file_seek_cb);
     if (rc != PNG_SUCCESS)
@@ -713,6 +766,11 @@ static bool save_frame_as_png(camera_fb_t *frame)
     {
         Serial.println("Failed to process frame before saving");
         return false;
+    }
+
+    if (SD.exists(path))
+    {
+        SD.remove(path);
     }
 
     bool ok = encode_rgb565_png(path, processed_pixels.data(), out_w, out_h);
