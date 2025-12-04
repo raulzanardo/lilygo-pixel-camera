@@ -16,6 +16,7 @@
 lv_obj_t *ui_Screen1 = NULL;
 lv_obj_t *ui_Dropdown1 = NULL;
 lv_obj_t *ui_Image1 = NULL;
+lv_obj_t *ui_fps_label = NULL;
 
 lv_obj_t *ui_camera_canvas = NULL;
 lv_timer_t *camera_timer = NULL;
@@ -118,6 +119,9 @@ void ui_set_filter_mode(int mode)
 static void camera_video_play(lv_timer_t *t)
 {
     // lv_async_call(cmaera_async_play, NULL);
+    static uint32_t last_fps_tick = 0;
+    static uint16_t frame_counter = 0;
+
     camera_fb_t *frame = esp_camera_fb_get();
     if (frame)
     {
@@ -172,6 +176,18 @@ static void camera_video_play(lv_timer_t *t)
             //     prompt_info("No find SD card!", UI_PROMPT_TIME);
             // }
         }
+        frame_counter++;
+
+        uint32_t now = lv_tick_get();
+        if (now - last_fps_tick >= 1000 && ui_fps_label)
+        {
+            uint32_t elapsed = now - last_fps_tick;
+            uint32_t fps = (frame_counter * 1000) / (elapsed ? elapsed : 1);
+            lv_label_set_text_fmt(ui_fps_label, "%lu FPS", static_cast<unsigned long>(fps));
+            last_fps_tick = now;
+            frame_counter = 0;
+        }
+
         esp_camera_fb_return(frame);
     }
 }
@@ -216,6 +232,15 @@ void ui_Screen1_screen_init(void)
 
     // ui_camera_canvas = lv_canvas_create(ui_Screen1);
     // lv_obj_align(ui_camera_canvas, LV_ALIGN_CENTER, 0, -80);
+
+    ui_fps_label = lv_label_create(ui_Screen1);
+    lv_label_set_text(ui_fps_label, "-- FPS");
+    lv_obj_set_style_bg_opa(ui_fps_label, LV_OPA_60, 0);
+    lv_obj_set_style_bg_color(ui_fps_label, lv_color_black(), 0);
+    lv_obj_set_style_text_color(ui_fps_label, lv_color_white(), 0);
+    lv_obj_set_style_pad_all(ui_fps_label, 4, 0);
+    lv_obj_set_style_radius(ui_fps_label, 4, 0);
+    lv_obj_align(ui_fps_label, LV_ALIGN_BOTTOM_RIGHT, -6, -4);
 
     camera_timer = lv_timer_create(camera_video_play, 50, NULL);
     lv_timer_ready(camera_timer);

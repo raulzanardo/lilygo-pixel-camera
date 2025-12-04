@@ -70,6 +70,10 @@ void camera_init(void)
         {
             s->set_vflip(s, 0); // This can't flip the picture vertically. Watch out!
             s->set_hmirror(s, 0);
+            //s->set_contrast(s, 0);
+            //s->set_gain_ctrl(s, 1);
+
+         
         }
         else
         {
@@ -135,7 +139,6 @@ void setup()
 
     Serial.println(LVGL_Arduino);
     Serial.println("I am LVGL_Arduino");
-
 
     camera_init();
 
