@@ -22,6 +22,8 @@ void ui_set_filter_mode(int mode);
 void ui_set_flash_enabled(bool enabled);
 bool ui_is_flash_enabled(void);
 lv_obj_t *ui_get_gallery_button(void);
+int ui_get_filter_mode(void);
+bool ui_get_camera_rotation(void);
 
 #ifdef __cplusplus
 } /*extern "C"*/

@@ -118,6 +118,11 @@ void ui_set_filter_mode(int mode)
     current_filter = (camera_filter_t)mode;
 }
 
+int ui_get_filter_mode(void)
+{
+    return static_cast<int>(current_filter);
+}
+
 void ui_set_flash_enabled(bool enabled)
 {
     camera_led_open_flag = enabled;
@@ -137,6 +142,11 @@ void ui_set_flash_enabled(bool enabled)
 bool ui_is_flash_enabled(void)
 {
     return camera_led_open_flag;
+}
+
+bool ui_get_camera_rotation(void)
+{
+    return camera_rotation_flag;
 }
 
 static void camera_video_play(lv_timer_t *t)

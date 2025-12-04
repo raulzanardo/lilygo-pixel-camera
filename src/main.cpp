@@ -11,17 +11,19 @@
 #include <cstring>
 #include <vector>
 #include <string>
+#include <algorithm>
 #include <PNGenc.h>
 #include <cstdlib>
+#include <Preferences.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#define LODEPNG_NO_COMPILE_CPP
-#define LODEPNG_NO_COMPILE_ALLOCATORS
 extern "C"
 {
 #include <extra/libs/png/lv_png.h>
 #include <extra/libs/png/lodepng.h>
 }
+#include "filter.h"
+#include "palettes.h"
 
 extern "C" void *lodepng_malloc(size_t size)
 {
@@ -65,7 +67,10 @@ static uint32_t led_flash_until = 0;
 static constexpr uint8_t LED_FLASH_DUTY = 200;
 static constexpr uint32_t LED_FLASH_DURATION_MS = 150;
 static bool sd_initialized = false;
-static uint32_t photo_counter = 0;
+static Preferences photo_prefs;
+static const char *PHOTO_PREF_NAMESPACE = "gallery";
+static const char *PHOTO_PREF_KEY = "last_photo";
+static uint32_t photo_counter = 1;
 static PNGENC png_encoder;
 static File png_file_handle;
 static lv_obj_t *gallery_screen = nullptr;
@@ -143,6 +148,23 @@ static int32_t png_file_seek_cb(PNGFILE *pFile, int32_t position)
     return pFile->iPos;
 }
 
+static long extract_photo_index(const String &name)
+{
+    int start = name.indexOf("photo_");
+    if (start < 0)
+    {
+        return -1;
+    }
+    start += 6;
+    int end = name.indexOf('.', start);
+    if (end < 0)
+    {
+        end = name.length();
+    }
+    String number = name.substring(start, end);
+    return number.toInt();
+}
+
 static bool list_captured_photos(std::vector<String> &out_names)
 {
     if (!ensure_sd_initialized())
@@ -172,6 +194,16 @@ static bool list_captured_photos(std::vector<String> &out_names)
         entry = next;
     }
     root.close();
+
+    std::sort(out_names.begin(), out_names.end(), [](const String &a, const String &b) {
+        long ia = extract_photo_index(a);
+        long ib = extract_photo_index(b);
+        if (ia == ib)
+        {
+            return a > b;
+        }
+        return ia > ib;
+    });
     return true;
 }
 
@@ -547,16 +579,63 @@ static void init_user_buttons()
     }
 }
 
-static bool save_frame_as_png(camera_fb_t *frame)
+static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &rgb565_out, uint16_t &out_w, uint16_t &out_h)
 {
-    if (!ensure_sd_initialized())
+    const uint16_t width = frame->width;
+    const uint16_t height = frame->height;
+    const size_t pixel_count = static_cast<size_t>(width) * height;
+
+    std::vector<uint16_t> working(pixel_count);
+    uint16_t *src = reinterpret_cast<uint16_t *>(frame->buf);
+
+    bool rotate = ui_get_camera_rotation();
+    if (rotate)
     {
-        return false;
+        out_w = height;
+        out_h = width;
+        for (size_t y = 0; y < height; ++y)
+        {
+            for (size_t x = 0; x < width; ++x)
+            {
+                size_t src_idx = y * width + x;
+                size_t dst_idx = x * height + (height - 1 - y);
+                working[dst_idx] = src[src_idx];
+            }
+        }
+    }
+    else
+    {
+        out_w = width;
+        out_h = height;
+        memcpy(working.data(), src, pixel_count * sizeof(uint16_t));
     }
 
-    char path[32];
-    snprintf(path, sizeof(path), "/photo_%lu.png", static_cast<unsigned long>(photo_counter++));
+    camera_fb_t temp_frame = *frame;
+    temp_frame.buf = reinterpret_cast<uint8_t *>(working.data());
+    temp_frame.width = out_w;
+    temp_frame.height = out_h;
 
+    switch (ui_get_filter_mode())
+    {
+    case 1:
+        applyPixelate(&temp_frame, 8, false);
+        break;
+    case 2:
+        applyColorPalette(working.data(), out_w, out_h, PALETTE_CYBERPUNK, PALETTE_CYBERPUNK_SIZE, 1, 2, 2);
+        break;
+    case 3:
+        applyEdgeDetection(&temp_frame, 1);
+        break;
+    default:
+        break;
+    }
+
+    rgb565_out = std::move(working);
+    return true;
+}
+
+static bool encode_rgb565_png(const char *path, const uint16_t *pixels, uint16_t width, uint16_t height)
+{
     SD.remove(path);
 
     int rc = png_encoder.open(path, png_file_open_cb, png_file_close_cb, png_file_read_cb, png_file_write_cb, png_file_seek_cb);
@@ -566,7 +645,7 @@ static bool save_frame_as_png(camera_fb_t *frame)
         return false;
     }
 
-    rc = png_encoder.encodeBegin(frame->width, frame->height, PNG_PIXEL_TRUECOLOR, 24, nullptr, 3);
+    rc = png_encoder.encodeBegin(width, height, PNG_PIXEL_TRUECOLOR, 24, nullptr, 3);
     if (rc != PNG_SUCCESS)
     {
         Serial.printf("encodeBegin failed: %d\n", rc);
@@ -574,15 +653,14 @@ static bool save_frame_as_png(camera_fb_t *frame)
         return false;
     }
 
-    std::vector<uint8_t> temp_line(frame->width * 3);
-    uint16_t *src = reinterpret_cast<uint16_t *>(frame->buf);
-    for (int y = 0; y < frame->height; ++y)
+    std::vector<uint8_t> temp_line(width * 3);
+    for (uint16_t y = 0; y < height; ++y)
     {
-        uint16_t *row = src + y * frame->width;
-        rc = png_encoder.addRGB565Line(row, temp_line.data(), true);
+        const uint16_t *row = pixels + y * width;
+        rc = png_encoder.addRGB565Line(const_cast<uint16_t *>(row), temp_line.data(), true);
         if (rc != PNG_SUCCESS)
         {
-            Serial.printf("addLine failed at row %d: %d\n", y, rc);
+            Serial.printf("addLine failed at row %u: %d\n", y, rc);
             png_encoder.close();
             return false;
         }
@@ -611,8 +689,37 @@ static bool save_frame_as_png(camera_fb_t *frame)
         Serial.println("Failed to reopen PNG for verification");
     }
 
-    Serial.printf("Saved photo to %s (%u x %u)\n", path, frame->width, frame->height);
     return true;
+}
+
+static bool save_frame_as_png(camera_fb_t *frame)
+{
+    if (!ensure_sd_initialized())
+    {
+        return false;
+    }
+
+    char path[32];
+    uint32_t current_index = photo_counter;
+    snprintf(path, sizeof(path), "/photo_%lu.png", static_cast<unsigned long>(current_index));
+
+    std::vector<uint16_t> processed_pixels;
+    uint16_t out_w = frame->width;
+    uint16_t out_h = frame->height;
+    if (!rotate_and_filter_frame(frame, processed_pixels, out_w, out_h))
+    {
+        Serial.println("Failed to process frame before saving");
+        return false;
+    }
+
+    bool ok = encode_rgb565_png(path, processed_pixels.data(), out_w, out_h);
+    if (ok)
+    {
+        Serial.printf("Saved photo to %s (%u x %u)\n", path, out_w, out_h);
+        photo_prefs.putUInt(PHOTO_PREF_KEY, current_index);
+        photo_counter = current_index + 1;
+    }
+    return ok;
 }
 
 static void capture_photo_with_flash()
@@ -812,6 +919,12 @@ void setup()
     }
 
     ensure_sd_initialized();
+
+    if (photo_prefs.begin(PHOTO_PREF_NAMESPACE, false))
+    {
+        uint32_t last_saved = photo_prefs.getUInt(PHOTO_PREF_KEY, 0);
+        photo_counter = last_saved + 1;
+    }
 
     // start_camera_stream();
     // init_camera_module();
