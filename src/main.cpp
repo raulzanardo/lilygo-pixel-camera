@@ -67,7 +67,7 @@ static bool user_button_last_pressed[BOARD_USER_BTN_NUM] = {false};
 static bool led_flash_active = false;
 static uint32_t led_flash_until = 0;
 static constexpr uint8_t LED_FLASH_DUTY = 200;
-static constexpr uint32_t LED_FLASH_DURATION_MS = 150;
+static constexpr uint32_t LED_FLASH_DURATION_MS = 200;
 static bool sd_initialized = false;
 static bool pmu_ready = false;
 static Preferences photo_prefs;
@@ -88,6 +88,12 @@ static std::vector<uint8_t> gallery_img_buffer;
 static std::string gallery_img_path;
 static std::string gallery_current_photo_name;
 static bool sd_fs_registered = false;
+static int gallery_page = 0;
+static constexpr size_t GALLERY_PAGE_SIZE = 20;
+static lv_obj_t *gallery_page_label = nullptr;
+static lv_obj_t *gallery_prev_btn = nullptr;
+static lv_obj_t *gallery_next_btn = nullptr;
+static std::vector<String> gallery_photo_cache;
 
 static bool ensure_sd_initialized();
 static void register_sd_fs_driver();
@@ -98,6 +104,11 @@ static lv_fs_res_t sd_fs_seek_cb(lv_fs_drv_t *drv, void *file_p, uint32_t pos, l
 static lv_fs_res_t sd_fs_tell_cb(lv_fs_drv_t *drv, void *file_p, uint32_t *pos);
 static void ensure_flash_power(bool enable);
 static bool ensure_pmu_ready();
+static bool refresh_gallery_cache();
+static void update_gallery_nav(size_t total_photos);
+static void gallery_prev_page_cb(lv_event_t *e);
+static void gallery_next_page_cb(lv_event_t *e);
+static void set_btn_enabled(lv_obj_t *btn, bool enabled);
 
 static void *png_file_open_cb(const char *filename)
 {
@@ -208,7 +219,7 @@ static bool list_captured_photos(std::vector<String> &out_names)
         long ib = extract_photo_index(b);
         if (ia == ib)
         {
-            return a > b;
+          return a > b;
         }
         return ia > ib; });
     return true;
@@ -390,27 +401,102 @@ static void populate_gallery_list()
     }
     lv_obj_clean(gallery_list);
 
-    std::vector<String> photos;
-    bool ok = list_captured_photos(photos);
-    if (!ok)
+    if (!refresh_gallery_cache())
     {
-        lv_obj_t *label = lv_label_create(gallery_list);
-        lv_label_set_text(label, "Failed to read SD card");
         return;
     }
 
-    if (photos.empty())
+    size_t total = gallery_photo_cache.size();
+    if (total == 0)
     {
         lv_obj_t *label = lv_label_create(gallery_list);
         lv_label_set_text(label, "No photos found");
+        update_gallery_nav(total);
         return;
     }
 
-    for (const String &name : photos)
+    size_t start = static_cast<size_t>(gallery_page) * GALLERY_PAGE_SIZE;
+    if (start >= total)
     {
+        gallery_page = static_cast<int>(total / GALLERY_PAGE_SIZE);
+        if (gallery_page < 0)
+        {
+            gallery_page = 0;
+        }
+        start = static_cast<size_t>(gallery_page) * GALLERY_PAGE_SIZE;
+    }
+    size_t end = std::min(total, start + GALLERY_PAGE_SIZE);
+
+    for (size_t i = start; i < end; ++i)
+    {
+        const String &name = gallery_photo_cache[i];
         lv_obj_t *btn = lv_list_add_btn(gallery_list, LV_SYMBOL_FILE, name.c_str());
         lv_obj_add_event_cb(btn, gallery_item_event_cb, LV_EVENT_CLICKED, NULL);
     }
+
+    update_gallery_nav(total);
+}
+
+static void gallery_prev_page_cb(lv_event_t *e)
+{
+    LV_UNUSED(e);
+    if (gallery_page > 0)
+    {
+        gallery_page--;
+        populate_gallery_list();
+    }
+}
+
+static void gallery_next_page_cb(lv_event_t *e)
+{
+    LV_UNUSED(e);
+    size_t total = gallery_photo_cache.size();
+    size_t max_page = (total == 0) ? 0 : (total - 1) / GALLERY_PAGE_SIZE;
+    if (static_cast<size_t>(gallery_page) < max_page)
+    {
+        gallery_page++;
+        populate_gallery_list();
+    }
+}
+
+static void set_btn_enabled(lv_obj_t *btn, bool enabled)
+{
+    if (!btn)
+    {
+        return;
+    }
+    if (enabled)
+    {
+        lv_obj_clear_state(btn, LV_STATE_DISABLED);
+    }
+    else
+    {
+        lv_obj_add_state(btn, LV_STATE_DISABLED);
+    }
+}
+
+static void update_gallery_nav(size_t total_photos)
+{
+    if (!gallery_page_label || !gallery_prev_btn || !gallery_next_btn)
+    {
+        return;
+    }
+
+    size_t max_page = (total_photos == 0) ? 0 : (total_photos - 1) / GALLERY_PAGE_SIZE;
+    if (gallery_page > static_cast<int>(max_page))
+    {
+        gallery_page = static_cast<int>(max_page);
+    }
+    set_btn_enabled(gallery_prev_btn, gallery_page > 0);
+    set_btn_enabled(gallery_next_btn, static_cast<size_t>(gallery_page) < max_page);
+    lv_label_set_text_fmt(gallery_page_label, "Page %d / %d", gallery_page + 1, static_cast<int>(max_page + 1));
+}
+
+static bool refresh_gallery_cache()
+{
+    gallery_photo_cache.clear();
+    bool ok = list_captured_photos(gallery_photo_cache);
+    return ok;
 }
 
 static void show_gallery_screen()
@@ -427,7 +513,7 @@ static void show_gallery_screen()
         lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
 
         gallery_list = lv_list_create(gallery_screen);
-        lv_obj_set_size(gallery_list, 440, 150);
+        lv_obj_set_size(gallery_list, 440, 140);
         lv_obj_align(gallery_list, LV_ALIGN_TOP_MID, 0, 50);
 
         lv_obj_t *back_btn = lv_btn_create(gallery_screen);
@@ -437,6 +523,34 @@ static void show_gallery_screen()
         lv_label_set_text(label, "Back");
         lv_obj_center(label);
         lv_obj_add_event_cb(back_btn, back_to_camera_cb, LV_EVENT_CLICKED, NULL);
+
+        // Pagination controls
+        lv_obj_t *nav_row = lv_obj_create(gallery_screen);
+        lv_obj_set_size(nav_row, 440, 36);
+        lv_obj_align(nav_row, LV_ALIGN_BOTTOM_MID, 0, -12);
+        lv_obj_clear_flag(nav_row, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_bg_opa(nav_row, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(nav_row, 0, 0);
+        lv_obj_set_style_pad_all(nav_row, 4, 0);
+        lv_obj_set_flex_flow(nav_row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(nav_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+        gallery_prev_btn = lv_btn_create(nav_row);
+        lv_obj_set_size(gallery_prev_btn, 80, 28);
+        lv_obj_t *prev_label = lv_label_create(gallery_prev_btn);
+        lv_label_set_text(prev_label, "< Prev");
+        lv_obj_center(prev_label);
+        lv_obj_add_event_cb(gallery_prev_btn, gallery_prev_page_cb, LV_EVENT_CLICKED, NULL);
+
+        gallery_page_label = lv_label_create(nav_row);
+        lv_label_set_text(gallery_page_label, "Page 1 / 1");
+
+        gallery_next_btn = lv_btn_create(nav_row);
+        lv_obj_set_size(gallery_next_btn, 80, 28);
+        lv_obj_t *next_label = lv_label_create(gallery_next_btn);
+        lv_label_set_text(next_label, "Next >");
+        lv_obj_center(next_label);
+        lv_obj_add_event_cb(gallery_next_btn, gallery_next_page_cb, LV_EVENT_CLICKED, NULL);
     }
 
     Serial.println("Populating gallery list");
@@ -812,7 +926,7 @@ static void capture_photo_with_flash()
 
     if (flash_active)
     {
-        delay(60);
+        delay(120);
     }
 
     camera_fb_t *frame = esp_camera_fb_get();
@@ -828,6 +942,14 @@ static void capture_photo_with_flash()
     }
 
     esp_camera_fb_return(frame);
+
+    // Ensure flash is turned off after capture completes
+    if (led_flash_active)
+    {
+        ledcWrite(LEDC_WHITE_CH, 0);
+        led_flash_active = false;
+        ensure_flash_power(false);
+    }
 }
 
 static void handle_user_buttons()
