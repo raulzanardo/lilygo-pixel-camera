@@ -14,9 +14,11 @@
 #include <algorithm>
 #include <PNGenc.h>
 #include <cstdlib>
+#include <Wire.h>
 #include <Preferences.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <XPowersLib.h>
 extern "C"
 {
 #include <extra/libs/png/lv_png.h>
@@ -57,7 +59,7 @@ static lv_disp_draw_buf_t draw_buf;
 static lv_color_t buf[screenWidth * screenHeight / 6];
 
 TFT_eSPI tft = TFT_eSPI(); /* TFT instance */
-
+PowersSY6970 PMU;
 camera_config_t config;
 
 static const int user_button_pins[BOARD_USER_BTN_NUM] = BOARD_USER_BUTTON;
@@ -67,6 +69,7 @@ static uint32_t led_flash_until = 0;
 static constexpr uint8_t LED_FLASH_DUTY = 200;
 static constexpr uint32_t LED_FLASH_DURATION_MS = 150;
 static bool sd_initialized = false;
+static bool pmu_ready = false;
 static Preferences photo_prefs;
 static const char *PHOTO_PREF_NAMESPACE = "gallery";
 static const char *PHOTO_PREF_KEY = "last_photo";
@@ -93,6 +96,8 @@ static lv_fs_res_t sd_fs_close_cb(lv_fs_drv_t *drv, void *file_p);
 static lv_fs_res_t sd_fs_read_cb(lv_fs_drv_t *drv, void *file_p, void *buf, uint32_t btr, uint32_t *br);
 static lv_fs_res_t sd_fs_seek_cb(lv_fs_drv_t *drv, void *file_p, uint32_t pos, lv_fs_whence_t whence);
 static lv_fs_res_t sd_fs_tell_cb(lv_fs_drv_t *drv, void *file_p, uint32_t *pos);
+static void ensure_flash_power(bool enable);
+static bool ensure_pmu_ready();
 
 static void *png_file_open_cb(const char *filename)
 {
@@ -608,6 +613,7 @@ static bool trigger_led_flash()
     {
         return false;
     }
+    ensure_flash_power(true);
     ledcWrite(LEDC_WHITE_CH, LED_FLASH_DUTY);
     led_flash_active = true;
     led_flash_until = millis() + LED_FLASH_DURATION_MS;
@@ -620,6 +626,23 @@ static void update_led_flash()
     {
         ledcWrite(LEDC_WHITE_CH, 0);
         led_flash_active = false;
+        ensure_flash_power(false);
+    }
+}
+
+static void ensure_flash_power(bool enable)
+{
+    if (enable)
+    {
+        if (!ensure_pmu_ready())
+        {
+            return;
+        }
+        PMU.enableOTG();
+    }
+    else if (pmu_ready)
+    {
+        PMU.disableOTG();
     }
 }
 
@@ -946,6 +969,25 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
     {
         data->state = LV_INDEV_STATE_REL;
     }
+}
+
+
+static bool ensure_pmu_ready()
+{
+    if (pmu_ready)
+    {
+        return true;
+    }
+
+    bool hasPMU = PMU.init(Wire, BOARD_I2C_SDA, BOARD_I2C_SCL, SY6970_SLAVE_ADDRESS);
+    if (!hasPMU)
+    {
+        return false;
+    }
+    pmu_ready = true;
+    // Minimal setup: leave charge defaults, disable status LED, light measurement
+    PMU.disableStatLed();
+    return true;
 }
 
 void setup()
