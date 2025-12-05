@@ -197,15 +197,15 @@ static bool list_captured_photos(std::vector<String> &out_names)
     }
     root.close();
 
-    std::sort(out_names.begin(), out_names.end(), [](const String &a, const String &b) {
+    std::sort(out_names.begin(), out_names.end(), [](const String &a, const String &b)
+              {
         long ia = extract_photo_index(a);
         long ib = extract_photo_index(b);
         if (ia == ib)
         {
             return a > b;
         }
-        return ia > ib;
-    });
+        return ia > ib; });
     return true;
 }
 
@@ -871,10 +871,11 @@ void camera_init(void)
         {
             s->set_vflip(s, 0); // This can't flip the picture vertically. Watch out!
             s->set_hmirror(s, 0);
-            //s->set_contrast(s, 0);
-            //s->set_gain_ctrl(s, 1);
-
-         
+        }
+        else if (s->id.PID == OV3660_PID)
+        {
+            s->set_vflip(s, 0);
+            s->set_hmirror(s, 1);
         }
         else
         {
