@@ -874,8 +874,25 @@ void camera_init(void)
         }
         else if (s->id.PID == OV3660_PID)
         {
-            s->set_vflip(s, 0);
             s->set_hmirror(s, 1);
+            //s->set_agc_gain(s, 30);
+
+
+            // s->set_lenc(s, 1);
+
+            // s->set_vflip(s, 0);
+
+            //  s->set_aec2(s, 1);
+            //  s->set_dcw(s, 1);
+            //  s->set_bpc(s, 1);
+            //  s->set_wpc(s, 1);
+            // s->set_aec_value(s, 0);
+            // s->set_ae_level(s, 2);
+
+             //s->set_exposure_ctrl(s, 0);
+            // s->set_whitebal(s, 0);
+            // s->set_awb_gain(s, 0);
+            // s->set_special_effect(s, 3);
         }
         else
         {
