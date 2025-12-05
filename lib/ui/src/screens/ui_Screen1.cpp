@@ -369,12 +369,12 @@ void ui_Screen1_screen_init(void)
 
     ui_fps_label = lv_label_create(ui_Screen1);
     lv_label_set_text(ui_fps_label, "-- FPS");
-    lv_obj_set_style_bg_opa(ui_fps_label, LV_OPA_60, 0);
-    lv_obj_set_style_bg_color(ui_fps_label, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(ui_fps_label, LV_OPA_TRANSP, 0);
     lv_obj_set_style_text_color(ui_fps_label, lv_color_white(), 0);
+    lv_obj_set_style_text_font(ui_fps_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_pad_all(ui_fps_label, 4, 0);
     lv_obj_set_style_radius(ui_fps_label, 4, 0);
-    lv_obj_align(ui_fps_label, LV_ALIGN_BOTTOM_RIGHT, -6, -4);
+    lv_obj_align(ui_fps_label, LV_ALIGN_BOTTOM_LEFT, 6, -4);
 
     camera_timer = lv_timer_create(camera_video_play, 50, NULL);
     lv_timer_ready(camera_timer);
