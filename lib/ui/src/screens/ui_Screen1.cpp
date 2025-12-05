@@ -16,6 +16,7 @@
 
 lv_obj_t *ui_Screen1 = NULL;
 lv_obj_t *ui_Dropdown1 = NULL;
+lv_obj_t *ui_PaletteDropdown = NULL;
 lv_obj_t *ui_Image1 = NULL;
 lv_obj_t *ui_fps_label = NULL;
 
@@ -40,7 +41,55 @@ static Preferences ui_prefs;
 static bool ui_prefs_ready = false;
 static const char *UI_PREF_NAMESPACE = "ui_state";
 static const char *UI_PREF_FILTER_KEY = "filter_mode";
+static const char *UI_PREF_PALETTE_KEY = "palette_idx";
 static const char *UI_PREF_FLASH_KEY = "flash_enabled";
+
+typedef struct
+{
+    const uint32_t *palette;
+    int size;
+} palette_option_t;
+
+static const palette_option_t kPaletteOptions[] = {
+    {PALETTE_SUNSET, PALETTE_SUNSET_SIZE},
+    {PALETTE_YELLOW_BROWN, PALETTE_YELLOW_BROWN_SIZE},
+    {PALETTE_GRAYSCALE, PALETTE_GRAYSCALE_SIZE},
+    {PALETTE_GAMEBOY, PALETTE_GAMEBOY_SIZE},
+    {PALETTE_CYBERPUNK, PALETTE_CYBERPUNK_SIZE},
+    {PALETTE_AUTUMN, PALETTE_AUTUMN_SIZE},
+    {PALETTE_OCEAN, PALETTE_OCEAN_SIZE},
+    {PALETTE_VAPORWAVE, PALETTE_VAPORWAVE_SIZE},
+    {PALETTE_DESERT, PALETTE_DESERT_SIZE},
+    {PALETTE_SAKURA, PALETTE_SAKURA_SIZE},
+    {PALETTE_MINT, PALETTE_MINT_SIZE},
+    {PALETTE_FIRE, PALETTE_FIRE_SIZE},
+    {PALETTE_ARCTIC, PALETTE_ARCTIC_SIZE},
+    {PALETTE_SEPIA, PALETTE_SEPIA_SIZE},
+    {PALETTE_NEON, PALETTE_NEON_SIZE},
+    {PALETTE_PASTEL, PALETTE_PASTEL_SIZE},
+    {PALETTE_BW, PALETTE_BW_SIZE},
+    {PALETTE_4COLOR, PALETTE_4COLOR_SIZE},
+    {PALETTE_16COLOR, PALETTE_16COLOR_SIZE},
+    {PALETTE_FRESTA, PALETTE_FRESTA_SIZE},
+};
+static const uint8_t kPaletteOptionCount = sizeof(kPaletteOptions) / sizeof(kPaletteOptions[0]);
+static int current_palette_index = 0;
+
+static inline int clamp_palette_index(int idx)
+{
+    if (idx < 0 || idx >= kPaletteOptionCount)
+    {
+        return 0;
+    }
+    return idx;
+}
+
+static const uint32_t *get_current_palette(int &out_size)
+{
+    current_palette_index = clamp_palette_index(current_palette_index);
+    out_size = kPaletteOptions[current_palette_index].size;
+    return kPaletteOptions[current_palette_index].palette;
+}
 
 static uint8_t *camera_canvas_buf = NULL;
 static size_t camera_canvas_buf_size = 0;
@@ -104,7 +153,11 @@ static void apply_selected_filter(camera_fb_t *frame)
         applyPixelate(frame, 8, false);
         break;
     case CAMERA_FILTER_DITHER:
-        applyColorPalette( (uint16_t *)frame->buf, frame->width, frame->height, PALETTE_CYBERPUNK, PALETTE_CYBERPUNK_SIZE, 1, 2, 2);
+    {
+        int palette_size = 0;
+        const uint32_t *palette = get_current_palette(palette_size);
+        applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, 1, 2, 2);
+    }
         break;
     case CAMERA_FILTER_EDGE:
         applyEdgeDetection(frame, 1);
@@ -131,6 +184,25 @@ void ui_set_filter_mode(int mode)
 int ui_get_filter_mode(void)
 {
     return static_cast<int>(current_filter);
+}
+
+void ui_get_palette(const uint32_t **palette, int *size)
+{
+    if (!palette || !size)
+    {
+        return;
+    }
+    *size = 0;
+    *palette = get_current_palette(*size);
+}
+
+void ui_set_palette_index(int idx)
+{
+    current_palette_index = clamp_palette_index(idx);
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putInt(UI_PREF_PALETTE_KEY, current_palette_index);
+    }
 }
 
 void ui_set_flash_enabled(bool enabled)
@@ -266,6 +338,23 @@ void ui_event_Dropdown1(lv_event_t *e)
     }
 }
 
+void ui_event_PaletteDropdown(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+    {
+        return;
+    }
+
+    lv_obj_t *dropdown = lv_event_get_target(e);
+    if (!dropdown)
+    {
+        return;
+    }
+
+    uint16_t selected_value = lv_dropdown_get_selected(dropdown);
+    ui_set_palette_index(static_cast<int>(selected_value));
+}
+
 void ui_event_FlashSwitch(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
@@ -297,6 +386,7 @@ void ui_Screen1_screen_init(void)
         {
             int stored_filter = ui_prefs.getInt(UI_PREF_FILTER_KEY, current_filter);
             current_filter = (camera_filter_t)stored_filter;
+            current_palette_index = clamp_palette_index(ui_prefs.getInt(UI_PREF_PALETTE_KEY, current_palette_index));
             camera_led_open_flag = ui_prefs.getBool(UI_PREF_FLASH_KEY, camera_led_open_flag);
         }
     }
@@ -314,13 +404,53 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_flex_flow(ui_right_panel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(ui_right_panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
 
-    ui_Dropdown1 = lv_dropdown_create(ui_right_panel);
-    lv_obj_set_width(ui_Dropdown1, LV_PCT(100));
+    lv_obj_t *ui_filter_row = lv_obj_create(ui_right_panel);
+    lv_obj_set_width(ui_filter_row, LV_PCT(100));
+    lv_obj_set_height(ui_filter_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(ui_filter_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_filter_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_filter_row, 0, 0);
+    lv_obj_set_style_pad_all(ui_filter_row, 0, 0);
+    lv_obj_set_style_pad_row(ui_filter_row, 0, 0);
+    lv_obj_set_style_pad_column(ui_filter_row, 12, 0);
+    lv_obj_set_flex_flow(ui_filter_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ui_filter_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    ui_Dropdown1 = lv_dropdown_create(ui_filter_row);
+    lv_obj_set_width(ui_Dropdown1, LV_PCT(48));
     lv_obj_set_height(ui_Dropdown1, LV_SIZE_CONTENT); /// 1
     lv_obj_add_flag(ui_Dropdown1, LV_OBJ_FLAG_SCROLL_ON_FOCUS); /// Flags
     lv_obj_add_event_cb(ui_Dropdown1, ui_event_Dropdown1, LV_EVENT_ALL, NULL);
     lv_dropdown_set_options_static(ui_Dropdown1, "No filter\nPixelate\nDithering\nEdge detect");
     lv_dropdown_set_selected(ui_Dropdown1, current_filter);
+
+    ui_PaletteDropdown = lv_dropdown_create(ui_filter_row);
+    lv_obj_set_width(ui_PaletteDropdown, LV_PCT(48));
+    lv_obj_set_height(ui_PaletteDropdown, LV_SIZE_CONTENT);
+    lv_obj_add_flag(ui_PaletteDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    lv_obj_add_event_cb(ui_PaletteDropdown, ui_event_PaletteDropdown, LV_EVENT_ALL, NULL);
+    lv_dropdown_set_options_static(ui_PaletteDropdown,
+                                   "Sunset\n"
+                                   "Yellow/Brown\n"
+                                   "Grayscale\n"
+                                   "Game Boy\n"
+                                   "Cyberpunk\n"
+                                   "Autumn\n"
+                                   "Ocean\n"
+                                   "Vaporwave\n"
+                                   "Desert\n"
+                                   "Sakura\n"
+                                   "Mint\n"
+                                   "Fire\n"
+                                   "Arctic\n"
+                                   "Sepia\n"
+                                   "Neon\n"
+                                   "Pastel\n"
+                                   "Black & White\n"
+                                   "CGA 4-color\n"
+                                   "VGA 16-color\n"
+                                   "Fresta");
+    lv_dropdown_set_selected(ui_PaletteDropdown, current_palette_index);
 
     lv_obj_t *ui_flash_row = lv_obj_create(ui_right_panel);
     lv_obj_set_width(ui_flash_row, LV_PCT(100));
@@ -355,17 +485,14 @@ void ui_Screen1_screen_init(void)
     lv_label_set_text(gallery_label, "Gallery");
     lv_obj_center(gallery_label);
 
-    ui_camera_canvas = lv_img_create(ui_Screen1);
-    lv_obj_set_width(ui_camera_canvas, 296);
+    ui_camera_canvas = lv_canvas_create(ui_Screen1);
+    lv_obj_set_width(ui_camera_canvas, 240);
     lv_obj_set_height(ui_camera_canvas, 222);
-    lv_obj_set_x(ui_camera_canvas, -92);
+    lv_obj_set_x(ui_camera_canvas, 0);
     lv_obj_set_y(ui_camera_canvas, 0);
-    lv_obj_set_align(ui_camera_canvas, LV_ALIGN_CENTER);
+    lv_obj_set_align(ui_camera_canvas, LV_ALIGN_TOP_LEFT);
     lv_obj_add_flag(ui_camera_canvas, LV_OBJ_FLAG_ADV_HITTEST);  /// Flags
     lv_obj_clear_flag(ui_camera_canvas, LV_OBJ_FLAG_SCROLLABLE); /// Flags
-
-    // ui_camera_canvas = lv_canvas_create(ui_Screen1);
-    // lv_obj_align(ui_camera_canvas, LV_ALIGN_CENTER, 0, -80);
 
     ui_fps_label = lv_label_create(ui_Screen1);
     lv_label_set_text(ui_fps_label, "-- FPS");

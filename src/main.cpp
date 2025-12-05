@@ -811,7 +811,17 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
         applyPixelate(&temp_frame, 8, false);
         break;
     case 2:
-        applyColorPalette(working.data(), out_w, out_h, PALETTE_CYBERPUNK, PALETTE_CYBERPUNK_SIZE, 1, 2, 2);
+    {
+        int palette_size = 0;
+        const uint32_t *palette = nullptr;
+        ui_get_palette(&palette, &palette_size);
+        if (!palette || palette_size <= 0)
+        {
+            palette = PALETTE_CYBERPUNK;
+            palette_size = PALETTE_CYBERPUNK_SIZE;
+        }
+        applyColorPalette(working.data(), out_w, out_h, palette, palette_size, 1, 2, 2);
+    }
         break;
     case 3:
         applyEdgeDetection(&temp_frame, 1);

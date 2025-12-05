@@ -15,10 +15,14 @@ extern void ui_Screen1_screen_init(void);
 extern void ui_Screen1_screen_destroy(void);
 extern lv_obj_t *ui_Screen1;
 extern void ui_event_Dropdown1( lv_event_t * e);
+extern void ui_event_PaletteDropdown( lv_event_t * e);
 extern lv_obj_t *ui_Dropdown1;
+extern lv_obj_t *ui_PaletteDropdown;
 extern lv_obj_t *ui_Image1;
 // CUSTOM VARIABLES
 void ui_set_filter_mode(int mode);
+void ui_set_palette_index(int idx);
+void ui_get_palette(const uint32_t **palette, int *size);
 void ui_set_flash_enabled(bool enabled);
 bool ui_is_flash_enabled(void);
 lv_obj_t *ui_get_gallery_button(void);
