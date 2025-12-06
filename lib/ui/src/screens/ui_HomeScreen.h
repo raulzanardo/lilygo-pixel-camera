@@ -3,17 +3,17 @@
 // LVGL version: 8.3.11
 // Project name: s3-pro-test
 
-#ifndef UI_SCREEN1_H
-#define UI_SCREEN1_H
+#ifndef UI_HOMESCREEN_H
+#define UI_HOMESCREEN_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// SCREEN: ui_Screen1
-extern void ui_Screen1_screen_init(void);
-extern void ui_Screen1_screen_destroy(void);
-extern lv_obj_t *ui_Screen1;
+// SCREEN: ui_HomeScreen
+extern void ui_HomeScreen_screen_init(void);
+extern void ui_HomeScreen_screen_destroy(void);
+extern lv_obj_t *ui_HomeScreen;
 extern void ui_event_Dropdown1( lv_event_t * e);
 extern void ui_event_PaletteDropdown( lv_event_t * e);
 extern lv_obj_t *ui_Dropdown1;
@@ -30,10 +30,10 @@ int ui_get_filter_mode(void);
 bool ui_get_camera_rotation(void);
 void ui_pause_camera_timer(void);
 void ui_resume_camera_timer(void);
+void ui_event_FlashSwitch(lv_event_t *e);
 
 #ifdef __cplusplus
 } /*extern "C"*/
 #endif
 
 #endif
-
