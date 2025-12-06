@@ -16,11 +16,88 @@
 #include "../../../../include/filter.h"
 #include "../../../../include/palettes.h"
 
+// External status functions from main.cpp
+extern uint32_t ui_get_sd_free_mb();
+extern uint16_t ui_get_battery_voltage();
+extern bool ui_is_charging();
+extern bool ui_is_usb_connected();
+
 lv_obj_t *ui_HomeScreen = NULL;
 lv_obj_t *ui_Dropdown1 = NULL;
 lv_obj_t *ui_PaletteDropdown = NULL;
 lv_obj_t *ui_Image1 = NULL;
 lv_obj_t *ui_fps_label = NULL;
+static lv_obj_t *ui_status_sd_label = NULL;
+static lv_obj_t *ui_status_batt_label = NULL;
+static lv_timer_t *status_timer = NULL;
+
+static void status_timer_cb(lv_timer_t *timer)
+{
+    LV_UNUSED(timer);
+
+    // Update SD card free space
+    uint32_t sd_free = ui_get_sd_free_mb();
+    if (sd_free > 0)
+    {
+        if (sd_free >= 1024)
+        {
+            lv_label_set_text_fmt(ui_status_sd_label, LV_SYMBOL_SD_CARD " %.1fGB", sd_free / 1024.0f);
+        }
+        else
+        {
+            lv_label_set_text_fmt(ui_status_sd_label, LV_SYMBOL_SD_CARD " %luMB", (unsigned long)sd_free);
+        }
+    }
+    else
+    {
+        lv_label_set_text(ui_status_sd_label, LV_SYMBOL_SD_CARD " --");
+    }
+
+    // Update battery status
+    uint16_t batt_mv = ui_get_battery_voltage();
+    bool charging = ui_is_charging();
+    bool usb = ui_is_usb_connected();
+
+    // Calculate approximate percentage (3.3V = 0%, 4.2V = 100%)
+    int pct = 0;
+    if (batt_mv > 3300)
+    {
+        pct = (batt_mv - 3300) * 100 / 900;
+        if (pct > 100) pct = 100;
+        if (pct < 0) pct = 0;
+    }
+
+    const char *icon = LV_SYMBOL_BATTERY_FULL;
+    if (charging)
+    {
+        icon = LV_SYMBOL_CHARGE;
+    }
+    else if (pct <= 10)
+    {
+        icon = LV_SYMBOL_BATTERY_EMPTY;
+    }
+    else if (pct <= 30)
+    {
+        icon = LV_SYMBOL_BATTERY_1;
+    }
+    else if (pct <= 60)
+    {
+        icon = LV_SYMBOL_BATTERY_2;
+    }
+    else if (pct <= 80)
+    {
+        icon = LV_SYMBOL_BATTERY_3;
+    }
+
+    if (usb && !charging)
+    {
+        lv_label_set_text_fmt(ui_status_batt_label, "%s %d%% " LV_SYMBOL_USB, icon, pct);
+    }
+    else
+    {
+        lv_label_set_text_fmt(ui_status_batt_label, "%s %d%%", icon, pct);
+    }
+}
 
 lv_obj_t *ui_camera_canvas = NULL;
 lv_timer_t *camera_timer = NULL;
@@ -428,6 +505,28 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_flex_flow(ui_right_panel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(ui_right_panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
 
+    // Status bar row (SD card + battery)
+    lv_obj_t *ui_status_row = lv_obj_create(ui_right_panel);
+    lv_obj_set_width(ui_status_row, LV_PCT(100));
+    lv_obj_set_height(ui_status_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(ui_status_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_status_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_status_row, 0, 0);
+    lv_obj_set_style_pad_all(ui_status_row, 0, 0);
+    lv_obj_set_style_pad_column(ui_status_row, 8, 0);
+    lv_obj_set_flex_flow(ui_status_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ui_status_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    ui_status_sd_label = lv_label_create(ui_status_row);
+    lv_label_set_text(ui_status_sd_label, LV_SYMBOL_SD_CARD " --");
+    lv_obj_set_style_text_font(ui_status_sd_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(ui_status_sd_label, lv_color_white(), 0);
+
+    ui_status_batt_label = lv_label_create(ui_status_row);
+    lv_label_set_text(ui_status_batt_label, LV_SYMBOL_BATTERY_FULL " --");
+    lv_obj_set_style_text_font(ui_status_batt_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(ui_status_batt_label, lv_color_white(), 0);
+
     lv_obj_t *ui_filter_row = lv_obj_create(ui_right_panel);
     lv_obj_set_width(ui_filter_row, LV_PCT(100));
     lv_obj_set_height(ui_filter_row, LV_SIZE_CONTENT);
@@ -540,10 +639,19 @@ void ui_HomeScreen_screen_init(void)
 
     camera_timer = lv_timer_create(camera_video_play, 50, NULL);
     lv_timer_ready(camera_timer);
+
+    // Status bar update timer (every 2 seconds)
+    status_timer = lv_timer_create(status_timer_cb, 2000, NULL);
+    lv_timer_ready(status_timer);
 }
 
 void ui_HomeScreen_screen_destroy(void)
 {
+    if (status_timer)
+    {
+        lv_timer_del(status_timer);
+        status_timer = NULL;
+    }
     if (ui_HomeScreen)
         lv_obj_del(ui_HomeScreen);
 
@@ -551,6 +659,8 @@ void ui_HomeScreen_screen_destroy(void)
     ui_HomeScreen = NULL;
     ui_Dropdown1 = NULL;
     ui_Image1 = NULL;
+    ui_status_sd_label = NULL;
+    ui_status_batt_label = NULL;
 }
 
 lv_obj_t *ui_get_gallery_button(void)

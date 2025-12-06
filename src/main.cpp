@@ -169,6 +169,53 @@ bool gallery_ensure_sd_initialized()
     return ensure_sd_initialized();
 }
 
+// Exported for UI status bar - get SD card free space in MB
+uint32_t ui_get_sd_free_mb()
+{
+    if (!ensure_sd_initialized())
+    {
+        return 0;
+    }
+    uint64_t total = SD.totalBytes();
+    uint64_t used = SD.usedBytes();
+    uint64_t free = (total > used) ? (total - used) : 0;
+    return static_cast<uint32_t>(free / (1024 * 1024));
+}
+
+// Exported for UI status bar - get battery voltage in mV
+uint16_t ui_get_battery_voltage()
+{
+    if (!ensure_pmu_ready())
+    {
+        return 0;
+    }
+    PMU.enableMeasure();
+    return PMU.getBattVoltage();
+}
+
+// Exported for UI status bar - check if charging
+bool ui_is_charging()
+{
+    if (!ensure_pmu_ready())
+    {
+        return false;
+    }
+    auto status = PMU.chargeStatus();
+    return (status == PowersSY6970::CHARGE_STATE_PRE_CHARGE ||
+            status == PowersSY6970::CHARGE_STATE_FAST_CHARGE);
+}
+
+// Exported for UI status bar - check if USB is connected
+bool ui_is_usb_connected()
+{
+    if (!ensure_pmu_ready())
+    {
+        return false;
+    }
+    auto bus = PMU.getBusStatus();
+    return (bus != PowersSY6970::BUS_STATE_NOINPUT && bus != PowersSY6970::BUS_STATE_OTG);
+}
+
 static void register_sd_fs_driver()
 {
     if (sd_fs_registered)
