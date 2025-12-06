@@ -476,6 +476,15 @@ void ui_HomeScreen_screen_init(void)
                                    "Fresta");
     lv_dropdown_set_selected(ui_PaletteDropdown, current_palette_index);
 
+    // Spacer to push navigation buttons to the bottom of the right panel
+    lv_obj_t *ui_nav_spacer = lv_obj_create(ui_right_panel);
+    lv_obj_clear_flag(ui_nav_spacer, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_nav_spacer, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_nav_spacer, 0, 0);
+    lv_obj_set_width(ui_nav_spacer, LV_PCT(100));
+    lv_obj_set_height(ui_nav_spacer, 0);
+    lv_obj_set_flex_grow(ui_nav_spacer, 1);
+
     lv_obj_t *ui_nav_row = lv_obj_create(ui_right_panel);
     lv_obj_set_width(ui_nav_row, LV_PCT(100));
     lv_obj_set_height(ui_nav_row, LV_SIZE_CONTENT);
@@ -485,19 +494,9 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_style_pad_all(ui_nav_row, 0, 0);
     lv_obj_set_style_pad_column(ui_nav_row, 12, 0);
     lv_obj_set_flex_flow(ui_nav_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(ui_nav_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(ui_nav_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    ui_settings_button = lv_btn_create(ui_nav_row);
-    lv_obj_set_size(ui_settings_button, 48, 48);
-    lv_obj_set_style_bg_color(ui_settings_button, lv_palette_main(LV_PALETTE_GREY), 0);
-    lv_obj_set_style_bg_opa(ui_settings_button, LV_OPA_80, 0);
-    lv_obj_set_style_radius(ui_settings_button, 8, 0);
-    lv_obj_set_style_text_color(ui_settings_button, lv_color_white(), 0);
-    lv_obj_t *settings_label = lv_label_create(ui_settings_button);
-    lv_label_set_text(settings_label, LV_SYMBOL_SETTINGS);
-    lv_obj_center(settings_label);
-    lv_obj_add_event_cb(ui_settings_button, ui_event_SettingsButton, LV_EVENT_CLICKED, NULL);
-
+    // Left: Gallery
     ui_gallery_button = lv_btn_create(ui_nav_row);
     lv_obj_set_size(ui_gallery_button, 48, 48);
     lv_obj_set_style_bg_color(ui_gallery_button, lv_palette_main(LV_PALETTE_BLUE), 0);
@@ -508,6 +507,18 @@ void ui_HomeScreen_screen_init(void)
     lv_label_set_text(gallery_label, LV_SYMBOL_IMAGE);
     lv_obj_center(gallery_label);
     lv_obj_add_event_cb(ui_gallery_button, ui_event_GalleryButton, LV_EVENT_CLICKED, NULL);
+
+    // Right: Settings
+    ui_settings_button = lv_btn_create(ui_nav_row);
+    lv_obj_set_size(ui_settings_button, 48, 48);
+    lv_obj_set_style_bg_color(ui_settings_button, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_set_style_bg_opa(ui_settings_button, LV_OPA_80, 0);
+    lv_obj_set_style_radius(ui_settings_button, 8, 0);
+    lv_obj_set_style_text_color(ui_settings_button, lv_color_white(), 0);
+    lv_obj_t *settings_label = lv_label_create(ui_settings_button);
+    lv_label_set_text(settings_label, LV_SYMBOL_SETTINGS);
+    lv_obj_center(settings_label);
+    lv_obj_add_event_cb(ui_settings_button, ui_event_SettingsButton, LV_EVENT_CLICKED, NULL);
 
     ui_camera_canvas = lv_canvas_create(ui_HomeScreen);
     lv_obj_set_width(ui_camera_canvas, 240);
