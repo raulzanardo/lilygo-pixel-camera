@@ -27,6 +27,13 @@ bool camera_led_open_flag = true;
 bool camera_rotation_flag = true;
 lv_obj_t *ui_flash_switch = NULL;
 lv_obj_t *ui_gallery_button = NULL;
+lv_obj_t *ui_settings_button = NULL;
+static lv_obj_t *ui_settings_screen = NULL;
+static lv_obj_t *ui_settings_flash_switch = NULL;
+static lv_obj_t *ui_settings_back_btn = NULL;
+
+// Forward declarations for handlers used before definition
+void ui_event_FlashSwitch(lv_event_t *e);
 
 typedef enum
 {
@@ -327,6 +334,78 @@ static void camera_video_play(lv_timer_t *t)
     }
 }
 
+static void ui_settings_back_event(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+    lv_scr_load_anim(ui_Screen1, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200, 0, false);
+    ui_resume_camera_timer();
+}
+
+static void build_settings_screen()
+{
+    if (ui_settings_screen)
+    {
+        return;
+    }
+
+    ui_settings_screen = lv_obj_create(NULL);
+    lv_obj_clear_flag(ui_settings_screen, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_pad_all(ui_settings_screen, 12, 0);
+    lv_obj_set_style_pad_row(ui_settings_screen, 12, 0);
+    lv_obj_set_flex_flow(ui_settings_screen, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(ui_settings_screen, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+
+    lv_obj_t *title = lv_label_create(ui_settings_screen);
+    lv_label_set_text(title, "Settings");
+    lv_obj_set_style_text_font(title, LV_FONT_DEFAULT, 0);
+
+    lv_obj_t *flash_row = lv_obj_create(ui_settings_screen);
+    lv_obj_set_width(flash_row, LV_PCT(100));
+    lv_obj_set_height(flash_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(flash_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(flash_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(flash_row, 0, 0);
+    lv_obj_set_style_pad_all(flash_row, 0, 0);
+    lv_obj_set_style_pad_row(flash_row, 8, 0);
+    lv_obj_set_style_pad_column(flash_row, 8, 0);
+    lv_obj_set_flex_flow(flash_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(flash_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *flash_label = lv_label_create(flash_row);
+    lv_label_set_text(flash_label, "Flash");
+
+    ui_settings_flash_switch = lv_switch_create(flash_row);
+    if (camera_led_open_flag)
+    {
+        lv_obj_add_state(ui_settings_flash_switch, LV_STATE_CHECKED);
+    }
+    lv_obj_add_event_cb(ui_settings_flash_switch, ui_event_FlashSwitch, LV_EVENT_ALL, NULL);
+
+    ui_settings_back_btn = lv_btn_create(ui_settings_screen);
+    lv_obj_set_size(ui_settings_back_btn, 44, 44);
+    lv_obj_align(ui_settings_back_btn, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_set_style_radius(ui_settings_back_btn, 8, 0);
+    lv_obj_set_style_bg_color(ui_settings_back_btn, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_t *back_label = lv_label_create(ui_settings_back_btn);
+    lv_label_set_text(back_label, LV_SYMBOL_LEFT);
+    lv_obj_center(back_label);
+    lv_obj_add_event_cb(ui_settings_back_btn, ui_settings_back_event, LV_EVENT_CLICKED, NULL);
+}
+
+static void ui_event_SettingsButton(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+    build_settings_screen();
+    ui_pause_camera_timer();
+    lv_scr_load_anim(ui_settings_screen, LV_SCR_LOAD_ANIM_MOVE_LEFT, 200, 0, false);
+}
+
 // event funtions
 void ui_event_Dropdown1(lv_event_t *e)
 {
@@ -452,37 +531,36 @@ void ui_Screen1_screen_init(void)
                                    "Fresta");
     lv_dropdown_set_selected(ui_PaletteDropdown, current_palette_index);
 
-    lv_obj_t *ui_flash_row = lv_obj_create(ui_right_panel);
-    lv_obj_set_width(ui_flash_row, LV_PCT(100));
-    lv_obj_set_height(ui_flash_row, LV_SIZE_CONTENT);
-    lv_obj_clear_flag(ui_flash_row, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_opa(ui_flash_row, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(ui_flash_row, 0, 0);
-    lv_obj_set_style_pad_all(ui_flash_row, 0, 0);
-    lv_obj_set_style_pad_row(ui_flash_row, 8, 0);
-    lv_obj_set_style_pad_column(ui_flash_row, 8, 0);
-    lv_obj_set_flex_flow(ui_flash_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(ui_flash_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *ui_nav_row = lv_obj_create(ui_right_panel);
+    lv_obj_set_width(ui_nav_row, LV_PCT(100));
+    lv_obj_set_height(ui_nav_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(ui_nav_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_nav_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_nav_row, 0, 0);
+    lv_obj_set_style_pad_all(ui_nav_row, 0, 0);
+    lv_obj_set_style_pad_column(ui_nav_row, 12, 0);
+    lv_obj_set_flex_flow(ui_nav_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ui_nav_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    lv_obj_t *flash_label = lv_label_create(ui_flash_row);
-    lv_label_set_text(flash_label, "Flash");
+    ui_settings_button = lv_btn_create(ui_nav_row);
+    lv_obj_set_size(ui_settings_button, 48, 48);
+    lv_obj_set_style_bg_color(ui_settings_button, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_set_style_bg_opa(ui_settings_button, LV_OPA_80, 0);
+    lv_obj_set_style_radius(ui_settings_button, 8, 0);
+    lv_obj_set_style_text_color(ui_settings_button, lv_color_white(), 0);
+    lv_obj_t *settings_label = lv_label_create(ui_settings_button);
+    lv_label_set_text(settings_label, LV_SYMBOL_SETTINGS);
+    lv_obj_center(settings_label);
+    lv_obj_add_event_cb(ui_settings_button, ui_event_SettingsButton, LV_EVENT_CLICKED, NULL);
 
-    ui_flash_switch = lv_switch_create(ui_flash_row);
-    if (camera_led_open_flag)
-    {
-        lv_obj_add_state(ui_flash_switch, LV_STATE_CHECKED);
-    }
-    lv_obj_add_event_cb(ui_flash_switch, ui_event_FlashSwitch, LV_EVENT_ALL, NULL);
-
-    ui_gallery_button = lv_btn_create(ui_right_panel);
-    lv_obj_set_width(ui_gallery_button, LV_PCT(100));
-    lv_obj_set_height(ui_gallery_button, 40);
+    ui_gallery_button = lv_btn_create(ui_nav_row);
+    lv_obj_set_size(ui_gallery_button, 48, 48);
     lv_obj_set_style_bg_color(ui_gallery_button, lv_palette_main(LV_PALETTE_BLUE), 0);
     lv_obj_set_style_bg_opa(ui_gallery_button, LV_OPA_80, 0);
     lv_obj_set_style_radius(ui_gallery_button, 8, 0);
     lv_obj_set_style_text_color(ui_gallery_button, lv_color_white(), 0);
     lv_obj_t *gallery_label = lv_label_create(ui_gallery_button);
-    lv_label_set_text(gallery_label, "Gallery");
+    lv_label_set_text(gallery_label, LV_SYMBOL_IMAGE);
     lv_obj_center(gallery_label);
 
     ui_camera_canvas = lv_canvas_create(ui_Screen1);
