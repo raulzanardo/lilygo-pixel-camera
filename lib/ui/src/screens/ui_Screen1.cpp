@@ -358,7 +358,28 @@ static void build_settings_screen()
     lv_obj_set_flex_flow(ui_settings_screen, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(ui_settings_screen, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
 
-    lv_obj_t *title = lv_label_create(ui_settings_screen);
+    lv_obj_t *header_row = lv_obj_create(ui_settings_screen);
+    lv_obj_set_width(header_row, LV_PCT(100));
+    lv_obj_set_height(header_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(header_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(header_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(header_row, 0, 0);
+    lv_obj_set_style_pad_all(header_row, 0, 0);
+    lv_obj_set_style_pad_row(header_row, 0, 0);
+    lv_obj_set_style_pad_column(header_row, 8, 0);
+    lv_obj_set_flex_flow(header_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(header_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    ui_settings_back_btn = lv_btn_create(header_row);
+    lv_obj_set_size(ui_settings_back_btn, 44, 44);
+    lv_obj_set_style_radius(ui_settings_back_btn, 8, 0);
+    lv_obj_set_style_bg_color(ui_settings_back_btn, lv_palette_main(LV_PALETTE_GREY), 0);
+    lv_obj_t *back_label = lv_label_create(ui_settings_back_btn);
+    lv_label_set_text(back_label, LV_SYMBOL_LEFT);
+    lv_obj_center(back_label);
+    lv_obj_add_event_cb(ui_settings_back_btn, ui_settings_back_event, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *title = lv_label_create(header_row);
     lv_label_set_text(title, "Settings");
     lv_obj_set_style_text_font(title, LV_FONT_DEFAULT, 0);
 
@@ -383,16 +404,6 @@ static void build_settings_screen()
         lv_obj_add_state(ui_settings_flash_switch, LV_STATE_CHECKED);
     }
     lv_obj_add_event_cb(ui_settings_flash_switch, ui_event_FlashSwitch, LV_EVENT_ALL, NULL);
-
-    ui_settings_back_btn = lv_btn_create(ui_settings_screen);
-    lv_obj_set_size(ui_settings_back_btn, 44, 44);
-    lv_obj_align(ui_settings_back_btn, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_obj_set_style_radius(ui_settings_back_btn, 8, 0);
-    lv_obj_set_style_bg_color(ui_settings_back_btn, lv_palette_main(LV_PALETTE_GREY), 0);
-    lv_obj_t *back_label = lv_label_create(ui_settings_back_btn);
-    lv_label_set_text(back_label, LV_SYMBOL_LEFT);
-    lv_obj_center(back_label);
-    lv_obj_add_event_cb(ui_settings_back_btn, ui_settings_back_event, LV_EVENT_CLICKED, NULL);
 }
 
 static void ui_event_SettingsButton(lv_event_t *e)

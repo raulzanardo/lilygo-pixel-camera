@@ -340,10 +340,11 @@ static void show_photo_preview(const char *filename)
         lv_obj_align(gallery_preview_img, LV_ALIGN_CENTER, 0, 10);
 
         gallery_preview_back_btn = lv_btn_create(gallery_preview_screen);
-        lv_obj_set_size(gallery_preview_back_btn, 100, 36);
-        lv_obj_align(gallery_preview_back_btn, LV_ALIGN_TOP_LEFT, 12, 8);
+        lv_obj_set_size(gallery_preview_back_btn, 44, 44);
+        lv_obj_align(gallery_preview_back_btn, LV_ALIGN_TOP_LEFT, 8, 8);
+        lv_obj_set_style_radius(gallery_preview_back_btn, 8, 0);
         lv_obj_t *label = lv_label_create(gallery_preview_back_btn);
-        lv_label_set_text(label, "Back");
+        lv_label_set_text(label, LV_SYMBOL_LEFT);
         lv_obj_center(label);
         lv_obj_add_event_cb(gallery_preview_back_btn, back_to_gallery_cb, LV_EVENT_CLICKED, NULL);
 
@@ -517,10 +518,11 @@ static void show_gallery_screen()
         lv_obj_align(gallery_list, LV_ALIGN_TOP_MID, 0, 50);
 
         lv_obj_t *back_btn = lv_btn_create(gallery_screen);
-        lv_obj_set_size(back_btn, 100, 36);
+        lv_obj_set_size(back_btn, 44, 44);
         lv_obj_align(back_btn, LV_ALIGN_TOP_LEFT, 12, 8);
+        lv_obj_set_style_radius(back_btn, 8, 0);
         lv_obj_t *label = lv_label_create(back_btn);
-        lv_label_set_text(label, "Back");
+        lv_label_set_text(label, LV_SYMBOL_LEFT);
         lv_obj_center(label);
         lv_obj_add_event_cb(back_btn, back_to_camera_cb, LV_EVENT_CLICKED, NULL);
 
