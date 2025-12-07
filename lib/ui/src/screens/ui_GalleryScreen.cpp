@@ -418,9 +418,10 @@ static void build_gallery_screen() {
     lv_label_set_text(title, "Gallery");
     lv_obj_set_style_text_font(title, LV_FONT_DEFAULT, 0);
 
-    // Gallery list - vertical scrolling
+    // Gallery list - vertical scrolling (flex grow to fill remaining space)
     gallery_list = lv_obj_create(gallery_screen);
-    lv_obj_set_size(gallery_list, LV_PCT(100), 350); // Increased height for vertical layout
+    lv_obj_set_width(gallery_list, LV_PCT(100));
+    lv_obj_set_flex_grow(gallery_list, 1); // Grow to fill available space
     lv_obj_set_flex_flow(gallery_list, LV_FLEX_FLOW_COLUMN); // Changed to vertical
     lv_obj_set_flex_align(gallery_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_all(gallery_list, 4, 0);
@@ -431,11 +432,11 @@ static void build_gallery_screen() {
     // Pagination controls
     lv_obj_t *nav_row = lv_obj_create(gallery_screen);
     lv_obj_set_width(nav_row, LV_PCT(100));
-    lv_obj_set_height(nav_row, 56); // Increased height for vertical button layout
+    lv_obj_set_height(nav_row, LV_SIZE_CONTENT); // Auto-size to content
     lv_obj_clear_flag(nav_row, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_opa(nav_row, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(nav_row, 0, 0);
-    lv_obj_set_style_pad_all(nav_row, 0, 0);
+    lv_obj_set_style_pad_all(nav_row, 4, 0);
     lv_obj_set_flex_flow(nav_row, LV_FLEX_FLOW_COLUMN); // Changed to column
     lv_obj_set_flex_align(nav_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 

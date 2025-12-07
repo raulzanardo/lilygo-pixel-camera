@@ -66,7 +66,7 @@ static const int user_button_pins[BOARD_USER_BTN_NUM] = BOARD_USER_BUTTON;
 static bool user_button_last_pressed[BOARD_USER_BTN_NUM] = {false};
 static bool led_flash_active = false;
 static uint32_t led_flash_until = 0;
-static constexpr uint8_t LED_FLASH_DUTY = 200;
+static constexpr uint8_t LED_FLASH_DUTY = 255;
 static constexpr uint32_t LED_FLASH_DURATION_MS = 200;
 static bool sd_initialized = false;
 static bool pmu_ready = false;
@@ -421,7 +421,7 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
         }
         applyColorPalette(working.data(), out_w, out_h, palette, palette_size, 1, 2, 2);
     }
-        break;
+    break;
     case 3:
         applyEdgeDetection(&temp_frame, 1);
         break;
@@ -535,13 +535,34 @@ static void capture_photo_with_flash()
 
     if (flash_active)
     {
-        delay(120);
+        // Wait for flash to stabilize
+        delay(50);
+
+        // Discard a few frames to let the sensor adjust to the flash
+        // This allows auto-exposure and auto-gain to stabilize
+        for (int i = 0; i < 3; i++)
+        {
+            camera_fb_t *temp = esp_camera_fb_get();
+            if (temp)
+            {
+                esp_camera_fb_return(temp);
+            }
+            delay(50); // Small delay between frame grabs
+        }
     }
 
+    // Now capture the actual photo with proper exposure
     camera_fb_t *frame = esp_camera_fb_get();
     if (!frame)
     {
         Serial.println("Failed to capture frame");
+        // Turn off flash before returning
+        if (led_flash_active)
+        {
+            ledcWrite(LEDC_WHITE_CH, 0);
+            led_flash_active = false;
+            ensure_flash_power(false);
+        }
         return;
     }
 
@@ -560,7 +581,6 @@ static void capture_photo_with_flash()
         ensure_flash_power(false);
     }
 }
-
 static void handle_user_buttons()
 {
     for (size_t i = 0; i < BOARD_USER_BTN_NUM; ++i)
@@ -630,12 +650,9 @@ void camera_init(void)
         {
             s->set_hmirror(s, 0);
             s->set_vflip(s, 1);
-            //s->set_agc_gain(s, 30);
-
+            // s->set_agc_gain(s, 30);
 
             // s->set_lenc(s, 1);
-
-         
 
             //  s->set_aec2(s, 1);
             //  s->set_dcw(s, 1);
@@ -644,7 +661,7 @@ void camera_init(void)
             // s->set_aec_value(s, 0);
             // s->set_ae_level(s, 2);
 
-             //s->set_exposure_ctrl(s, 0);
+            // s->set_exposure_ctrl(s, 0);
             // s->set_whitebal(s, 0);
             // s->set_awb_gain(s, 0);
             // s->set_special_effect(s, 3);
@@ -703,7 +720,6 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
     }
 }
 
-
 static bool ensure_pmu_ready()
 {
     if (pmu_ready)
@@ -724,7 +740,7 @@ static bool ensure_pmu_ready()
 
 void setup()
 {
-    //delay(2000);
+    // delay(2000);
     Serial.begin(115200); /* prepare for possible serial debug */
 
     String LVGL_Arduino = "Hello Arduino! ";
