@@ -23,7 +23,7 @@ extern bool ui_is_charging();
 extern bool ui_is_usb_connected();
 
 lv_obj_t *ui_HomeScreen = NULL;
-lv_obj_t *ui_Dropdown1 = NULL;
+lv_obj_t *ui_FilterDropdown = NULL;
 lv_obj_t *ui_PaletteDropdown = NULL;
 lv_obj_t *ui_Image1 = NULL;
 lv_obj_t *ui_fps_label = NULL;
@@ -63,8 +63,10 @@ static void status_timer_cb(lv_timer_t *timer)
     if (batt_mv > 3300)
     {
         pct = (batt_mv - 3300) * 100 / 900;
-        if (pct > 100) pct = 100;
-        if (pct < 0) pct = 0;
+        if (pct > 100)
+            pct = 100;
+        if (pct < 0)
+            pct = 0;
     }
 
     const char *icon = LV_SYMBOL_BATTERY_FULL;
@@ -103,7 +105,7 @@ lv_obj_t *ui_camera_canvas = NULL;
 lv_timer_t *camera_timer = NULL;
 bool camera_get_photo_flag = false;
 bool camera_led_open_flag = true;
-bool camera_rotation_flag = true;
+bool camera_rotation_flag = false;
 lv_obj_t *ui_flash_switch = NULL;
 lv_obj_t *ui_gallery_button = NULL;
 lv_obj_t *ui_settings_button = NULL;
@@ -241,7 +243,7 @@ static void apply_selected_filter(camera_fb_t *frame)
         const uint32_t *palette = get_current_palette(palette_size);
         applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, 1, 2, 2);
     }
-        break;
+    break;
     case CAMERA_FILTER_EDGE:
         applyEdgeDetection(frame, 1);
         break;
@@ -492,21 +494,8 @@ void ui_HomeScreen_screen_init(void)
         }
     }
 
-    lv_obj_t *ui_right_panel = lv_obj_create(ui_HomeScreen);
-    lv_obj_set_size(ui_right_panel, 240, 222);
-    lv_obj_set_x(ui_right_panel, 240);
-    lv_obj_set_y(ui_right_panel, 0);
-    lv_obj_set_align(ui_right_panel, LV_ALIGN_TOP_LEFT);
-    lv_obj_clear_flag(ui_right_panel, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_opa(ui_right_panel, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(ui_right_panel, 0, 0);
-    lv_obj_set_style_pad_all(ui_right_panel, 12, 0);
-    lv_obj_set_style_pad_row(ui_right_panel, 12, 0);
-    lv_obj_set_flex_flow(ui_right_panel, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(ui_right_panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
-
     // Status bar row (SD card + battery)
-    lv_obj_t *ui_status_row = lv_obj_create(ui_right_panel);
+    lv_obj_t *ui_status_row = lv_obj_create(ui_HomeScreen);
     lv_obj_set_width(ui_status_row, LV_PCT(100));
     lv_obj_set_height(ui_status_row, LV_SIZE_CONTENT);
     lv_obj_clear_flag(ui_status_row, LV_OBJ_FLAG_SCROLLABLE);
@@ -514,8 +503,43 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_style_border_width(ui_status_row, 0, 0);
     lv_obj_set_style_pad_all(ui_status_row, 0, 0);
     lv_obj_set_style_pad_column(ui_status_row, 8, 0);
+    lv_obj_set_style_pad_row(ui_status_row, 8, 0);
     lv_obj_set_flex_flow(ui_status_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(ui_status_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    ui_camera_canvas = lv_canvas_create(ui_HomeScreen);
+    lv_obj_set_width(ui_camera_canvas, 222);
+    lv_obj_set_height(ui_camera_canvas, 176);
+    lv_obj_set_x(ui_camera_canvas, 0);
+    lv_obj_set_y(ui_camera_canvas, 14);
+    lv_obj_set_align(ui_camera_canvas, LV_ALIGN_TOP_LEFT);
+    lv_obj_add_flag(ui_camera_canvas, LV_OBJ_FLAG_ADV_HITTEST);  /// Flags
+    lv_obj_clear_flag(ui_camera_canvas, LV_OBJ_FLAG_SCROLLABLE); /// Flags
+
+    ui_fps_label = lv_label_create(ui_camera_canvas);
+    lv_label_set_text(ui_fps_label, "-- FPS");
+    lv_obj_set_style_bg_opa(ui_fps_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_text_color(ui_fps_label, lv_color_white(), 0);
+    lv_obj_set_style_text_font(ui_fps_label, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_pad_all(ui_fps_label, 4, 0);
+    lv_obj_set_style_radius(ui_fps_label, 4, 0);
+    lv_obj_align(ui_fps_label, LV_ALIGN_BOTTOM_LEFT, 6, -4);
+
+    camera_timer = lv_timer_create(camera_video_play, 50, NULL);
+    lv_timer_ready(camera_timer);
+
+    lv_obj_t *ui_bottom_panel = lv_obj_create(ui_HomeScreen);
+    lv_obj_set_size(ui_bottom_panel, 222, 480 - 176 - 14);
+    lv_obj_set_x(ui_bottom_panel, 0);
+    lv_obj_set_y(ui_bottom_panel, 176 + 14);
+    lv_obj_set_align(ui_bottom_panel, LV_ALIGN_TOP_LEFT);
+    lv_obj_clear_flag(ui_bottom_panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_bottom_panel, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_bottom_panel, 0, 0);
+    lv_obj_set_style_pad_all(ui_bottom_panel, 8, 0);
+    lv_obj_set_style_pad_row(ui_bottom_panel, 8, 0);
+    lv_obj_set_flex_flow(ui_bottom_panel, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(ui_bottom_panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
 
     ui_status_sd_label = lv_label_create(ui_status_row);
     lv_label_set_text(ui_status_sd_label, LV_SYMBOL_SD_CARD " --");
@@ -527,56 +551,72 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_style_text_font(ui_status_batt_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(ui_status_batt_label, lv_color_white(), 0);
 
-    lv_obj_t *ui_filter_row = lv_obj_create(ui_right_panel);
-    lv_obj_set_width(ui_filter_row, LV_PCT(100));
-    lv_obj_set_height(ui_filter_row, LV_SIZE_CONTENT);
-    lv_obj_clear_flag(ui_filter_row, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_opa(ui_filter_row, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(ui_filter_row, 0, 0);
-    lv_obj_set_style_pad_all(ui_filter_row, 0, 0);
-    lv_obj_set_style_pad_row(ui_filter_row, 0, 0);
-    lv_obj_set_style_pad_column(ui_filter_row, 12, 0);
-    lv_obj_set_flex_flow(ui_filter_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(ui_filter_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *ui_filter_column = lv_obj_create(ui_bottom_panel);
+    lv_obj_set_width(ui_filter_column, LV_PCT(100));
+    lv_obj_set_height(ui_filter_column, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(ui_filter_column, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_filter_column, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_filter_column, 0, 0);
 
-    ui_Dropdown1 = lv_dropdown_create(ui_filter_row);
-    lv_obj_set_width(ui_Dropdown1, LV_PCT(48));
-    lv_obj_set_height(ui_Dropdown1, LV_SIZE_CONTENT); /// 1
-    lv_obj_add_flag(ui_Dropdown1, LV_OBJ_FLAG_SCROLL_ON_FOCUS); /// Flags
-    lv_obj_add_event_cb(ui_Dropdown1, ui_event_Dropdown1, LV_EVENT_ALL, NULL);
-    lv_dropdown_set_options_static(ui_Dropdown1, "No filter\nPixelate\nDithering\nEdge detect");
-    lv_dropdown_set_selected(ui_Dropdown1, current_filter);
+    /* Padding */
+    lv_obj_set_style_pad_all(ui_filter_column, 0, 0);
+    lv_obj_set_style_pad_row(ui_filter_column, 8, 0); // vertical spacing between items
 
-    ui_PaletteDropdown = lv_dropdown_create(ui_filter_row);
-    lv_obj_set_width(ui_PaletteDropdown, LV_PCT(48));
-    lv_obj_set_height(ui_PaletteDropdown, LV_SIZE_CONTENT);
+    /* Flex column */
+    lv_obj_set_flex_flow(ui_filter_column, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(
+        ui_filter_column,
+        LV_FLEX_ALIGN_START, // main axis (top)
+        LV_FLEX_ALIGN_START, // cross axis (left)
+        LV_FLEX_ALIGN_CENTER);
+
+    /* Filter dropdown */
+    ui_FilterDropdown = lv_dropdown_create(ui_filter_column);
+    lv_obj_set_width(ui_FilterDropdown, LV_PCT(100));
+    lv_obj_set_height(ui_FilterDropdown, 48);
+    lv_obj_add_flag(ui_FilterDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    lv_obj_add_event_cb(ui_FilterDropdown, ui_event_Dropdown1, LV_EVENT_ALL, NULL);
+    lv_obj_set_style_pad_ver(ui_FilterDropdown, 12, LV_PART_MAIN);
+
+    lv_dropdown_set_options_static(
+        ui_FilterDropdown,
+        "No filter\nPixelate\nDithering\nEdge detect");
+    lv_dropdown_set_selected(ui_FilterDropdown, current_filter);
+
+    /* Palette dropdown */
+    ui_PaletteDropdown = lv_dropdown_create(ui_filter_column);
+    lv_obj_set_width(ui_PaletteDropdown, LV_PCT(100));
+    lv_obj_set_height(ui_PaletteDropdown, 48);
     lv_obj_add_flag(ui_PaletteDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_add_event_cb(ui_PaletteDropdown, ui_event_PaletteDropdown, LV_EVENT_ALL, NULL);
-    lv_dropdown_set_options_static(ui_PaletteDropdown,
-                                   "Sunset\n"
-                                   "Yellow/Brown\n"
-                                   "Grayscale\n"
-                                   "Game Boy\n"
-                                   "Cyberpunk\n"
-                                   "Autumn\n"
-                                   "Ocean\n"
-                                   "Vaporwave\n"
-                                   "Desert\n"
-                                   "Sakura\n"
-                                   "Mint\n"
-                                   "Fire\n"
-                                   "Arctic\n"
-                                   "Sepia\n"
-                                   "Neon\n"
-                                   "Pastel\n"
-                                   "Black & White\n"
-                                   "CGA 4-color\n"
-                                   "VGA 16-color\n"
-                                   "Fresta");
+    lv_obj_set_style_pad_ver(ui_PaletteDropdown, 12, LV_PART_MAIN);
+
+    lv_dropdown_set_options_static(
+        ui_PaletteDropdown,
+        "Sunset\n"
+        "Yellow/Brown\n"
+        "Grayscale\n"
+        "Game Boy\n"
+        "Cyberpunk\n"
+        "Autumn\n"
+        "Ocean\n"
+        "Vaporwave\n"
+        "Desert\n"
+        "Sakura\n"
+        "Mint\n"
+        "Fire\n"
+        "Arctic\n"
+        "Sepia\n"
+        "Neon\n"
+        "Pastel\n"
+        "Black & White\n"
+        "CGA 4-color\n"
+        "VGA 16-color\n"
+        "Fresta");
     lv_dropdown_set_selected(ui_PaletteDropdown, current_palette_index);
 
     // Spacer to push navigation buttons to the bottom of the right panel
-    lv_obj_t *ui_nav_spacer = lv_obj_create(ui_right_panel);
+    lv_obj_t *ui_nav_spacer = lv_obj_create(ui_bottom_panel);
     lv_obj_clear_flag(ui_nav_spacer, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_opa(ui_nav_spacer, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(ui_nav_spacer, 0, 0);
@@ -584,7 +624,7 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_height(ui_nav_spacer, 0);
     lv_obj_set_flex_grow(ui_nav_spacer, 1);
 
-    lv_obj_t *ui_nav_row = lv_obj_create(ui_right_panel);
+    lv_obj_t *ui_nav_row = lv_obj_create(ui_bottom_panel);
     lv_obj_set_width(ui_nav_row, LV_PCT(100));
     lv_obj_set_height(ui_nav_row, LV_SIZE_CONTENT);
     lv_obj_clear_flag(ui_nav_row, LV_OBJ_FLAG_SCROLLABLE);
@@ -597,7 +637,7 @@ void ui_HomeScreen_screen_init(void)
 
     // Left: Gallery
     ui_gallery_button = lv_btn_create(ui_nav_row);
-    lv_obj_set_size(ui_gallery_button, 48, 48);
+    lv_obj_set_size(ui_gallery_button, 64, 64);
     lv_obj_set_style_bg_color(ui_gallery_button, lv_palette_main(LV_PALETTE_BLUE), 0);
     lv_obj_set_style_bg_opa(ui_gallery_button, LV_OPA_80, 0);
     lv_obj_set_style_radius(ui_gallery_button, 8, 0);
@@ -609,7 +649,7 @@ void ui_HomeScreen_screen_init(void)
 
     // Right: Settings
     ui_settings_button = lv_btn_create(ui_nav_row);
-    lv_obj_set_size(ui_settings_button, 48, 48);
+    lv_obj_set_size(ui_settings_button, 64, 64);
     lv_obj_set_style_bg_color(ui_settings_button, lv_palette_main(LV_PALETTE_GREY), 0);
     lv_obj_set_style_bg_opa(ui_settings_button, LV_OPA_80, 0);
     lv_obj_set_style_radius(ui_settings_button, 8, 0);
@@ -618,27 +658,6 @@ void ui_HomeScreen_screen_init(void)
     lv_label_set_text(settings_label, LV_SYMBOL_SETTINGS);
     lv_obj_center(settings_label);
     lv_obj_add_event_cb(ui_settings_button, ui_event_SettingsButton, LV_EVENT_CLICKED, NULL);
-
-    ui_camera_canvas = lv_canvas_create(ui_HomeScreen);
-    lv_obj_set_width(ui_camera_canvas, 240);
-    lv_obj_set_height(ui_camera_canvas, 222);
-    lv_obj_set_x(ui_camera_canvas, 0);
-    lv_obj_set_y(ui_camera_canvas, 0);
-    lv_obj_set_align(ui_camera_canvas, LV_ALIGN_TOP_LEFT);
-    lv_obj_add_flag(ui_camera_canvas, LV_OBJ_FLAG_ADV_HITTEST);  /// Flags
-    lv_obj_clear_flag(ui_camera_canvas, LV_OBJ_FLAG_SCROLLABLE); /// Flags
-
-    ui_fps_label = lv_label_create(ui_HomeScreen);
-    lv_label_set_text(ui_fps_label, "-- FPS");
-    lv_obj_set_style_bg_opa(ui_fps_label, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_text_color(ui_fps_label, lv_color_white(), 0);
-    lv_obj_set_style_text_font(ui_fps_label, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_pad_all(ui_fps_label, 4, 0);
-    lv_obj_set_style_radius(ui_fps_label, 4, 0);
-    lv_obj_align(ui_fps_label, LV_ALIGN_BOTTOM_LEFT, 6, -4);
-
-    camera_timer = lv_timer_create(camera_video_play, 50, NULL);
-    lv_timer_ready(camera_timer);
 
     // Status bar update timer (every 2 seconds)
     status_timer = lv_timer_create(status_timer_cb, 2000, NULL);
@@ -657,7 +676,7 @@ void ui_HomeScreen_screen_destroy(void)
 
     // NULL screen variables
     ui_HomeScreen = NULL;
-    ui_Dropdown1 = NULL;
+    ui_FilterDropdown = NULL;
     ui_Image1 = NULL;
     ui_status_sd_label = NULL;
     ui_status_batt_label = NULL;

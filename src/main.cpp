@@ -52,8 +52,8 @@ extern "C" void lodepng_free(void *ptr)
     heap_caps_free(ptr);
 }
 /* Change to your screen resolution */
-static const uint16_t screenWidth = 480;
-static const uint16_t screenHeight = 222;
+static const uint16_t screenWidth = 222;
+static const uint16_t screenHeight = 480;
 
 static lv_disp_draw_buf_t draw_buf;
 static lv_color_t buf[screenWidth * screenHeight / 6];
@@ -597,7 +597,7 @@ void camera_init(void)
     config.xclk_freq_hz = XCLK_FREQ_HZ;
 
     config.pixel_format = PIXFORMAT_RGB565;
-    config.frame_size = FRAMESIZE_240X240;
+    config.frame_size = FRAMESIZE_HQVGA;
     config.jpeg_quality = 0;
     config.fb_count = 1;
 
@@ -628,13 +628,14 @@ void camera_init(void)
         }
         else if (s->id.PID == OV3660_PID)
         {
-            s->set_hmirror(s, 1);
+            s->set_hmirror(s, 0);
+            s->set_vflip(s, 1);
             //s->set_agc_gain(s, 30);
 
 
             // s->set_lenc(s, 1);
 
-            // s->set_vflip(s, 0);
+         
 
             //  s->set_aec2(s, 1);
             //  s->set_dcw(s, 1);
@@ -723,7 +724,7 @@ static bool ensure_pmu_ready()
 
 void setup()
 {
-    delay(2000);
+    //delay(2000);
     Serial.begin(115200); /* prepare for possible serial debug */
 
     String LVGL_Arduino = "Hello Arduino! ";
@@ -739,7 +740,7 @@ void setup()
     lv_png_init();
 
     tft.begin();        /* TFT init */
-    tft.setRotation(1); /* Landscape orientation, flipped */
+    tft.setRotation(0); /* Landscape orientation, flipped */
 
     lv_disp_draw_buf_init(&draw_buf, buf, NULL, screenWidth * screenHeight / 10);
 

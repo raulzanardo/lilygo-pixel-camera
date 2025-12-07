@@ -16,7 +16,7 @@ extern void ui_HomeScreen_screen_destroy(void);
 extern lv_obj_t *ui_HomeScreen;
 extern void ui_event_Dropdown1( lv_event_t * e);
 extern void ui_event_PaletteDropdown( lv_event_t * e);
-extern lv_obj_t *ui_Dropdown1;
+extern lv_obj_t *ui_FilterDropdown;
 extern lv_obj_t *ui_PaletteDropdown;
 extern lv_obj_t *ui_Image1;
 // CUSTOM VARIABLES
