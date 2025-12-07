@@ -805,5 +805,5 @@ void loop()
     handle_user_buttons();
     update_led_flash();
     lv_task_handler();
-    delay(2);
+    //delay(2);
 }

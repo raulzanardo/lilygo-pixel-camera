@@ -317,7 +317,7 @@ static void apply_selected_filter(camera_fb_t *frame)
     {
         int palette_size = 0;
         const uint32_t *palette = get_current_palette(palette_size);
-        applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, 1, 2, 2);
+        applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, 1, 1, 2);
     }
     break;
     case CAMERA_FILTER_EDGE:
