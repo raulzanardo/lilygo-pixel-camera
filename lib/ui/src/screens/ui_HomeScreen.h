@@ -31,6 +31,7 @@ bool ui_get_camera_rotation(void);
 void ui_pause_camera_timer(void);
 void ui_resume_camera_timer(void);
 void ui_event_FlashSwitch(lv_event_t *e);
+void ui_event_StorageSwitch(lv_event_t *e);
 
 #ifdef __cplusplus
 } /*extern "C"*/

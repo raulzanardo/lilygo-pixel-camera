@@ -5,6 +5,7 @@
 
 static lv_obj_t *ui_settings_screen = NULL;
 static lv_obj_t *ui_settings_flash_switch = NULL;
+static lv_obj_t *ui_settings_storage_switch = NULL;
 static lv_obj_t *ui_settings_back_btn = NULL;
 
 // Forward declaration
@@ -32,6 +33,7 @@ static void build_settings_screen()
     lv_obj_clear_flag(ui_settings_screen, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_pad_all(ui_settings_screen, 12, 0);
     lv_obj_set_style_pad_row(ui_settings_screen, 12, 0);
+    lv_obj_set_style_pad_column(ui_settings_screen, 12, 0);
     lv_obj_set_flex_flow(ui_settings_screen, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(ui_settings_screen, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
 
@@ -60,6 +62,7 @@ static void build_settings_screen()
     lv_label_set_text(title, "Settings");
     lv_obj_set_style_text_font(title, LV_FONT_DEFAULT, 0);
 
+    // flash toggle
     lv_obj_t *flash_row = lv_obj_create(ui_settings_screen);
     lv_obj_set_width(flash_row, LV_PCT(100));
     lv_obj_set_height(flash_row, LV_SIZE_CONTENT);
@@ -81,6 +84,25 @@ static void build_settings_screen()
         lv_obj_add_state(ui_settings_flash_switch, LV_STATE_CHECKED);
     }
     lv_obj_add_event_cb(ui_settings_flash_switch, ui_event_FlashSwitch, LV_EVENT_ALL, NULL);
+
+    // storage
+    lv_obj_t *storage_row = lv_obj_create(ui_settings_screen);
+    lv_obj_set_width(storage_row, LV_PCT(100));
+    lv_obj_set_height(storage_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(storage_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(storage_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(storage_row, 0, 0);
+    lv_obj_set_style_pad_all(storage_row, 0, 0);
+    lv_obj_set_style_pad_row(storage_row, 8, 0);
+    lv_obj_set_style_pad_column(storage_row, 8, 0);
+    lv_obj_set_flex_flow(storage_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(storage_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *storage_label = lv_label_create(storage_row);
+    lv_label_set_text(storage_label, "Storage mode");
+
+    ui_settings_storage_switch = lv_switch_create(storage_row);
+    lv_obj_add_event_cb(ui_settings_storage_switch, ui_event_StorageSwitch, LV_EVENT_ALL, NULL);
 }
 
 lv_obj_t *ui_get_settings_screen(void)

@@ -15,6 +15,11 @@
 #include "stdlib.h"
 #include "../../../../include/filter.h"
 #include "../../../../include/palettes.h"
+#include <USB.h>
+#include <USBMSC.h>
+#include <FS.h>
+#include <SD.h>
+USBMSC msc;
 
 // External status functions from main.cpp
 extern uint32_t ui_get_sd_free_mb();
@@ -30,6 +35,76 @@ lv_obj_t *ui_fps_label = NULL;
 static lv_obj_t *ui_status_sd_label = NULL;
 static lv_obj_t *ui_status_batt_label = NULL;
 static lv_timer_t *status_timer = NULL;
+
+static int32_t onWrite(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t bufsize)
+{
+    uint32_t secSize = SD.sectorSize();
+    if (!secSize)
+    {
+        return false; // disk error
+    }
+    log_v("Write lba: %ld\toffset: %ld\tbufsize: %ld", lba, offset, bufsize);
+    for (int x = 0; x < bufsize / secSize; x++)
+    {
+        uint8_t blkbuffer[secSize];
+        memcpy(blkbuffer, (uint8_t *)buffer + secSize * x, secSize);
+        if (!SD.writeRAW(blkbuffer, lba + x))
+        {
+            return false;
+        }
+    }
+    return bufsize;
+}
+
+static int32_t onRead(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize)
+{
+    uint32_t secSize = SD.sectorSize();
+    if (!secSize)
+    {
+        return false; // disk error
+    }
+    log_v("Read lba: %ld\toffset: %ld\tbufsize: %ld\tsector: %lu", lba, offset, bufsize, secSize);
+    for (int x = 0; x < bufsize / secSize; x++)
+    {
+        if (!SD.readRAW((uint8_t *)buffer + (x * secSize), lba + x))
+        {
+            return false; // outside of volume boundary
+        }
+    }
+    return bufsize;
+}
+
+static bool onStartStop(uint8_t power_condition, bool start, bool load_eject)
+{
+    log_i("Start/Stop power: %u\tstart: %d\teject: %d", power_condition, start, load_eject);
+    return true;
+}
+
+static void usbEventCallback(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+{
+    if (event_base == ARDUINO_USB_EVENTS)
+    {
+        arduino_usb_event_data_t *data = (arduino_usb_event_data_t *)event_data;
+        switch (event_id)
+        {
+        case ARDUINO_USB_STARTED_EVENT:
+            Serial.println("USB PLUGGED");
+            break;
+        case ARDUINO_USB_STOPPED_EVENT:
+            Serial.println("USB UNPLUGGED");
+            break;
+        case ARDUINO_USB_SUSPEND_EVENT:
+            Serial.printf("USB SUSPENDED: remote_wakeup_en: %u\n", data->suspend.remote_wakeup_en);
+            break;
+        case ARDUINO_USB_RESUME_EVENT:
+            Serial.println("USB RESUMED");
+            break;
+
+        default:
+            break;
+        }
+    }
+}
 
 static void status_timer_cb(lv_timer_t *timer)
 {
@@ -112,6 +187,7 @@ lv_obj_t *ui_settings_button = NULL;
 
 // Forward declarations for handlers used before definition
 void ui_event_FlashSwitch(lv_event_t *e);
+void ui_event_StorageSwitch(lv_event_t *e);
 
 typedef enum
 {
@@ -473,6 +549,40 @@ void ui_event_FlashSwitch(lv_event_t *e)
 
     bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
     ui_set_flash_enabled(enabled);
+}
+
+void ui_event_StorageSwitch(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+    {
+        return;
+    }
+
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+    {
+        return;
+    }
+
+    bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+
+    if (enabled)
+    {
+        msc.vendorID("ESP32");
+        msc.productID("USB_MSC");
+        msc.productRevision("1.0");
+        msc.onRead(onRead);
+        msc.onWrite(onWrite);
+        msc.onStartStop(onStartStop);
+        msc.mediaPresent(true);
+        msc.begin(SD.numSectors(), SD.sectorSize());
+        USB.begin();
+        USB.onEvent(usbEventCallback);
+    }
+    else
+    {
+        ESP.restart();
+    }
 }
 
 // build funtions

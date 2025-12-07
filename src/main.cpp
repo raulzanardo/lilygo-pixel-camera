@@ -8,7 +8,7 @@
 #include "esp_heap_caps.h"
 #include <FS.h>
 #include <SD.h>
-#include <cstring>
+#include <cstring> 
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -19,6 +19,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <XPowersLib.h>
+
+
 extern "C"
 {
 #include <extra/libs/png/lv_png.h>
@@ -87,6 +89,8 @@ static lv_fs_res_t sd_fs_seek_cb(lv_fs_drv_t *drv, void *file_p, uint32_t pos, l
 static lv_fs_res_t sd_fs_tell_cb(lv_fs_drv_t *drv, void *file_p, uint32_t *pos);
 static void ensure_flash_power(bool enable);
 static bool ensure_pmu_ready();
+
+
 
 static void *png_file_open_cb(const char *filename)
 {
