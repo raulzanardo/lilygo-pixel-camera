@@ -755,6 +755,7 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_t *gallery_label = lv_label_create(ui_gallery_button);
     lv_label_set_text(gallery_label, LV_SYMBOL_IMAGE);
     lv_obj_center(gallery_label);
+    lv_obj_set_style_text_font(gallery_label, &lv_font_montserrat_28, 0);
     lv_obj_add_event_cb(ui_gallery_button, ui_event_GalleryButton, LV_EVENT_CLICKED, NULL);
 
     // Right: Settings
@@ -766,6 +767,8 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_style_text_color(ui_settings_button, lv_color_white(), 0);
     lv_obj_t *settings_label = lv_label_create(ui_settings_button);
     lv_label_set_text(settings_label, LV_SYMBOL_SETTINGS);
+    lv_obj_set_style_text_font(settings_label, &lv_font_montserrat_28, 0);
+
     lv_obj_center(settings_label);
     lv_obj_add_event_cb(ui_settings_button, ui_event_SettingsButton, LV_EVENT_CLICKED, NULL);
 
