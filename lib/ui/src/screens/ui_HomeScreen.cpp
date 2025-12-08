@@ -220,6 +220,27 @@ typedef struct
     int size;
 } palette_option_t;
 
+SemaphoreHandle_t cam_mutex;
+
+void camera_set_safe(void (*fn)(sensor_t *s))
+{
+    if (xSemaphoreTake(cam_mutex, pdMS_TO_TICKS(100)))
+    {
+
+        // Make sure no frame is held
+        camera_fb_t *fb = esp_camera_fb_get();
+        if (fb)
+            esp_camera_fb_return(fb);
+
+        vTaskDelay(pdMS_TO_TICKS(30)); // OV3660 needs quiet time
+
+        sensor_t *s = esp_camera_sensor_get();
+        fn(s);
+
+        xSemaphoreGive(cam_mutex);
+    }
+}
+
 static const palette_option_t kPaletteOptions[] = {
     {PALETTE_SUNSET, PALETTE_SUNSET_SIZE},
     {PALETTE_YELLOW_BROWN, PALETTE_YELLOW_BROWN_SIZE},
@@ -532,6 +553,21 @@ static void ui_event_CameraSettingsButton(lv_event_t *e)
                                     EYE_COLOR_INACTIVE, 0);
     }
 }
+static void ui_event_FlipSwitch(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+    {
+        return;
+    }
+
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+    {
+        return;
+    }
+
+    bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+}
 
 static void ui_event_GalleryButton(lv_event_t *e)
 {
@@ -780,22 +816,23 @@ void ui_HomeScreen_screen_init(void)
         LV_FLEX_ALIGN_CENTER);
 
     /* Example camera settings */
-    lv_obj_t *camera_settings_row = lv_obj_create(ui_camera_settings_column);
-    lv_obj_set_width(camera_settings_row, LV_PCT(100));
-    lv_obj_set_height(camera_settings_row, LV_SIZE_CONTENT);
-    lv_obj_clear_flag(camera_settings_row, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_opa(camera_settings_row, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(camera_settings_row, 0, 0);
-    lv_obj_set_style_pad_all(camera_settings_row, 0, 0);
-    lv_obj_set_style_pad_row(camera_settings_row, 8, 0);
-    lv_obj_set_style_pad_column(camera_settings_row, 8, 0);
-    lv_obj_set_flex_flow(camera_settings_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(camera_settings_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *camera_setting_flip_row = lv_obj_create(ui_camera_settings_column);
+    lv_obj_set_width(camera_setting_flip_row, LV_PCT(100));
+    lv_obj_set_height(camera_setting_flip_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(camera_setting_flip_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(camera_setting_flip_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(camera_setting_flip_row, 0, 0);
+    lv_obj_set_style_pad_all(camera_setting_flip_row, 0, 0);
+    lv_obj_set_style_pad_row(camera_setting_flip_row, 8, 0);
+    lv_obj_set_style_pad_column(camera_setting_flip_row, 8, 0);
+    lv_obj_set_flex_flow(camera_setting_flip_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(camera_setting_flip_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    lv_obj_t *setting_label = lv_label_create(camera_settings_row);
-    lv_label_set_text(setting_label, "Setting");
+    lv_obj_t *setting_label = lv_label_create(camera_setting_flip_row);
+    lv_label_set_text(setting_label, "Flip");
 
-    lv_obj_t *ui_settings_switch = lv_switch_create(camera_settings_row);
+    lv_obj_t *ui_settings_switch = lv_switch_create(camera_setting_flip_row);
+    lv_obj_add_event_cb(ui_settings_switch, ui_event_FlipSwitch, LV_EVENT_ALL, NULL);
 
     /* Hide initially */
     lv_obj_add_flag(ui_camera_settings_column, LV_OBJ_FLAG_HIDDEN);
