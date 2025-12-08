@@ -732,6 +732,9 @@ void setup()
     // delay(2000);
     Serial.begin(115200); /* prepare for possible serial debug */
 
+    pinMode(BOARD_TFT_BL, OUTPUT);
+  digitalWrite(BOARD_TFT_BL, LOW); // Backlight OFF
+
     String LVGL_Arduino = "Hello Arduino! ";
     LVGL_Arduino += String('V') + lv_version_major() + "." + lv_version_minor() + "." + lv_version_patch();
 
@@ -746,7 +749,9 @@ void setup()
 
     tft.begin();        /* TFT init */
     tft.setRotation(0); /* Landscape orientation, flipped */
-
+    tft.fillScreen(TFT_BLACK); // Clear the screen to black
+ digitalWrite(BOARD_TFT_BL, HIGH);
+  
     lv_disp_draw_buf_init(&draw_buf, buf, NULL, screenWidth * screenHeight / 10);
 
     /* Initialize the display */
