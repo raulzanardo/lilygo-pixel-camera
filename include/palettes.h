@@ -88,20 +88,7 @@ const uint32_t PALETTE_OCEAN[] = {
 };
 const int PALETTE_OCEAN_SIZE = 8;
 
-// Palette 8: Vaporwave
-const uint32_t PALETTE_VAPORWAVE[] = {
-  0x2d00f7, // Deep blue
-  0x6a00f4, // Purple
-  0x8900f2, // Violet
-  0xa100f2, // Light violet
-  0xb100e8, // Magenta
-  0xd100d1, // Pink
-  0xf72585, // Hot pink
-  0xff8fab  // Light pink
-};
-const int PALETTE_VAPORWAVE_SIZE = 8;
-
-// Palette 9: Desert Sand
+// Palette 8: Desert Sand
 const uint32_t PALETTE_DESERT[] = {
   0x3d2817, // Dark brown
   0x6b4423, // Brown
@@ -114,7 +101,7 @@ const uint32_t PALETTE_DESERT[] = {
 };
 const int PALETTE_DESERT_SIZE = 8;
 
-// Palette 10: Cherry Blossom
+// Palette 9: Cherry Blossom
 const uint32_t PALETTE_SAKURA[] = {
   0x2d132c, // Dark purple
   0x801336, // Dark red
@@ -127,7 +114,7 @@ const uint32_t PALETTE_SAKURA[] = {
 };
 const int PALETTE_SAKURA_SIZE = 8;
 
-// Palette 11: Mint Ice Cream
+// Palette 10: Mint Ice Cream
 const uint32_t PALETTE_MINT[] = {
   0x0d3b66, // Dark blue
   0x1a5490, // Blue
@@ -140,7 +127,7 @@ const uint32_t PALETTE_MINT[] = {
 };
 const int PALETTE_MINT_SIZE = 8;
 
-// Palette 12: Fire and Ash
+// Palette 11: Fire and Ash
 const uint32_t PALETTE_FIRE[] = {
   0x0c0a09, // Almost black
   0x1c1614, // Very dark gray
@@ -153,7 +140,7 @@ const uint32_t PALETTE_FIRE[] = {
 };
 const int PALETTE_FIRE_SIZE = 8;
 
-// Palette 13: Arctic Ice
+// Palette 12: Arctic Ice
 const uint32_t PALETTE_ARCTIC[] = {
   0x03045e, // Navy blue
   0x023e8a, // Dark blue
@@ -166,7 +153,7 @@ const uint32_t PALETTE_ARCTIC[] = {
 };
 const int PALETTE_ARCTIC_SIZE = 8;
 
-// Palette 14: Vintage Sepia
+// Palette 13: Vintage Sepia
 const uint32_t PALETTE_SEPIA[] = {
   0x1a1110, // Very dark brown
   0x3d2817, // Dark brown
@@ -179,7 +166,7 @@ const uint32_t PALETTE_SEPIA[] = {
 };
 const int PALETTE_SEPIA_SIZE = 8;
 
-// Palette 15: Neon Night
+// Palette 14: Neon Night
 const uint32_t PALETTE_NEON[] = {
   0x000000, // Black
   0x1a1a2e, // Very dark blue
@@ -192,27 +179,14 @@ const uint32_t PALETTE_NEON[] = {
 };
 const int PALETTE_NEON_SIZE = 8;
 
-// Palette 16: Pastel Dreams
-const uint32_t PALETTE_PASTEL[] = {
-  0xffd6e8, // Light pink
-  0xffabe1, // Pink
-  0xc9a0dc, // Lavender
-  0xa0c4ff, // Light blue
-  0x9bf6ff, // Cyan
-  0xbdb2ff, // Light purple
-  0xffc6ff, // Light magenta
-  0xfffffc  // White
-};
-const int PALETTE_PASTEL_SIZE = 8;
-
-// Palette 17: Black & White (2 colors)
+// Palette 15: Black & White (2 colors)
 const uint32_t PALETTE_BW[] = {
   0x000000, // Black
   0xffffff  // White
 };
 const int PALETTE_BW_SIZE = 2;
 
-// Palette 18: 4 Colors (CGA inspired)
+// Palette 16: 4 Colors (CGA inspired)
 const uint32_t PALETTE_4COLOR[] = {
   0x000000, // Black
   0x00aaaa, // Cyan
@@ -221,7 +195,7 @@ const uint32_t PALETTE_4COLOR[] = {
 };
 const int PALETTE_4COLOR_SIZE = 4;
 
-// Palette 19: 16 Colors (VGA inspired)
+// Palette 17: 16 Colors (VGA inspired)
 const uint32_t PALETTE_16COLOR[] = {
   0x000000, // Black
   0x0000aa, // Blue

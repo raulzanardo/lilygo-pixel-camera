@@ -249,7 +249,6 @@ static const palette_option_t kPaletteOptions[] = {
     {PALETTE_CYBERPUNK, PALETTE_CYBERPUNK_SIZE},
     {PALETTE_AUTUMN, PALETTE_AUTUMN_SIZE},
     {PALETTE_OCEAN, PALETTE_OCEAN_SIZE},
-    {PALETTE_VAPORWAVE, PALETTE_VAPORWAVE_SIZE},
     {PALETTE_DESERT, PALETTE_DESERT_SIZE},
     {PALETTE_SAKURA, PALETTE_SAKURA_SIZE},
     {PALETTE_MINT, PALETTE_MINT_SIZE},
@@ -257,7 +256,6 @@ static const palette_option_t kPaletteOptions[] = {
     {PALETTE_ARCTIC, PALETTE_ARCTIC_SIZE},
     {PALETTE_SEPIA, PALETTE_SEPIA_SIZE},
     {PALETTE_NEON, PALETTE_NEON_SIZE},
-    {PALETTE_PASTEL, PALETTE_PASTEL_SIZE},
     {PALETTE_BW, PALETTE_BW_SIZE},
     {PALETTE_4COLOR, PALETTE_4COLOR_SIZE},
     {PALETTE_16COLOR, PALETTE_16COLOR_SIZE},
@@ -771,7 +769,6 @@ void ui_HomeScreen_screen_init(void)
         "Cyberpunk\n"
         "Autumn\n"
         "Ocean\n"
-        "Vaporwave\n"
         "Desert\n"
         "Sakura\n"
         "Mint\n"
@@ -779,7 +776,6 @@ void ui_HomeScreen_screen_init(void)
         "Arctic\n"
         "Sepia\n"
         "Neon\n"
-        "Pastel\n"
         "Black & White\n"
         "CGA 4-color\n"
         "VGA 16-color\n"
