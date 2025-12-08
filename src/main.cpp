@@ -381,27 +381,12 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
     std::vector<uint16_t> working(pixel_count);
     uint16_t *src = reinterpret_cast<uint16_t *>(frame->buf);
 
-    bool rotate = ui_get_camera_rotation();
-    if (rotate)
-    {
-        out_w = height;
-        out_h = width;
-        for (size_t y = 0; y < height; ++y)
-        {
-            for (size_t x = 0; x < width; ++x)
-            {
-                size_t src_idx = y * width + x;
-                size_t dst_idx = x * height + (height - 1 - y);
-                working[dst_idx] = src[src_idx];
-            }
-        }
-    }
-    else
-    {
+
+
         out_w = width;
         out_h = height;
         memcpy(working.data(), src, pixel_count * sizeof(uint16_t));
-    }
+
 
     camera_fb_t temp_frame = *frame;
     temp_frame.buf = reinterpret_cast<uint8_t *>(working.data());

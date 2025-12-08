@@ -183,7 +183,7 @@ lv_obj_t *ui_camera_canvas = NULL;
 lv_timer_t *camera_timer = NULL;
 bool camera_get_photo_flag = false;
 bool camera_led_open_flag = true;
-bool camera_rotation_flag = false;
+
 lv_obj_t *ui_flash_switch = NULL;
 lv_obj_t *ui_gallery_button = NULL;
 lv_obj_t *ui_settings_button = NULL;
@@ -421,10 +421,6 @@ bool ui_is_flash_enabled(void)
     return camera_led_open_flag;
 }
 
-bool ui_get_camera_rotation(void)
-{
-    return camera_rotation_flag;
-}
 
 void ui_pause_camera_timer(void)
 {
@@ -466,16 +462,9 @@ static void camera_video_play(lv_timer_t *t)
         const uint16_t *src_pixels = (const uint16_t *)frame->buf;
         size_t pixel_count = frame->len / 2;
 
-        if (camera_rotation_flag)
-        {
-            rotate_frame_90_clockwise(dst_pixels, src_pixels, frame->width, frame->height);
-            lv_canvas_set_buffer(ui_camera_canvas, camera_canvas_buf, frame->height, frame->width, LV_IMG_CF_TRUE_COLOR);
-        }
-        else
-        {
-            copy_frame(dst_pixels, src_pixels, pixel_count);
-            lv_canvas_set_buffer(ui_camera_canvas, camera_canvas_buf, frame->width, frame->height, LV_IMG_CF_TRUE_COLOR);
-        }
+
+        copy_frame(dst_pixels, src_pixels, pixel_count);
+        lv_canvas_set_buffer(ui_camera_canvas, camera_canvas_buf, frame->width, frame->height, LV_IMG_CF_TRUE_COLOR);
 
         if (camera_get_photo_flag)
         {

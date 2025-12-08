@@ -27,7 +27,7 @@ void ui_set_flash_enabled(bool enabled);
 bool ui_is_flash_enabled(void);
 lv_obj_t *ui_get_gallery_button(void);
 int ui_get_filter_mode(void);
-bool ui_get_camera_rotation(void);
+
 void ui_pause_camera_timer(void);
 void ui_resume_camera_timer(void);
 void ui_event_FlashSwitch(lv_event_t *e);
