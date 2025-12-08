@@ -780,17 +780,22 @@ void ui_HomeScreen_screen_init(void)
         LV_FLEX_ALIGN_CENTER);
 
     /* Example camera settings */
-    lv_obj_t *label = lv_label_create(ui_camera_settings_column);
-    lv_label_set_text(label, "Camera settings");
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_14, 0);
+    lv_obj_t *camera_settings_row = lv_obj_create(ui_camera_settings_column);
+    lv_obj_set_width(camera_settings_row, LV_PCT(100));
+    lv_obj_set_height(camera_settings_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(camera_settings_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(camera_settings_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(camera_settings_row, 0, 0);
+    lv_obj_set_style_pad_all(camera_settings_row, 0, 0);
+    lv_obj_set_style_pad_row(camera_settings_row, 8, 0);
+    lv_obj_set_style_pad_column(camera_settings_row, 8, 0);
+    lv_obj_set_flex_flow(camera_settings_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(camera_settings_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    /* Flash switch */
-    ui_flash_switch = lv_switch_create(ui_camera_settings_column);
-    lv_obj_add_event_cb(ui_flash_switch, ui_event_FlashSwitch, LV_EVENT_VALUE_CHANGED, NULL);
-    if (camera_led_open_flag)
-    {
-        lv_obj_add_state(ui_flash_switch, LV_STATE_CHECKED);
-    }
+    lv_obj_t *setting_label = lv_label_create(camera_settings_row);
+    lv_label_set_text(setting_label, "Setting");
+
+    lv_obj_t *ui_settings_switch = lv_switch_create(camera_settings_row);
 
     /* Hide initially */
     lv_obj_add_flag(ui_camera_settings_column, LV_OBJ_FLAG_HIDDEN);
