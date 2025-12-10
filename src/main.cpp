@@ -393,6 +393,11 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
     temp_frame.width = out_w;
     temp_frame.height = out_h;
 
+    if (ui_get_auto_adjust_enabled())
+    {
+        applyAutoAdjust(&temp_frame);
+    }
+
     switch (ui_get_filter_mode())
     {
     case 1:

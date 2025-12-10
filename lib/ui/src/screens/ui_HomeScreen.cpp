@@ -436,6 +436,11 @@ static void px_swap(uint8_t *a, uint8_t *b)
 
 static void apply_selected_filter(camera_fb_t *frame)
 {
+    if (ui_get_auto_adjust_enabled())
+    {
+        applyAutoAdjust(frame);
+    }
+
     switch (current_filter)
     {
     case CAMERA_FILTER_PIXELATE:
