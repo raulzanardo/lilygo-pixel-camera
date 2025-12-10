@@ -35,6 +35,8 @@ static lv_obj_t *gallery_page_label = nullptr;
 static lv_obj_t *gallery_prev_btn = nullptr;
 static lv_obj_t *gallery_next_btn = nullptr;
 static std::vector<String> gallery_photo_cache;
+static lv_obj_t *gallery_loading_label = nullptr;
+static lv_timer_t *gallery_populate_timer = nullptr;
 
 // SD helpers - defined externally
 extern bool gallery_ensure_sd_initialized();
@@ -124,6 +126,17 @@ static void update_gallery_nav(size_t total_photos) {
 static void populate_gallery_list();
 static void show_photo_preview(const char *filename);
 static void delete_photo_cb(lv_event_t *e);
+static void populate_gallery_list_async_cb(void *data);
+static void populate_gallery_list_timer_cb(lv_timer_t *t);
+static inline void gallery_set_loading(bool on)
+{
+    if (!gallery_loading_label)
+        return;
+    if (on)
+        lv_obj_clear_flag(gallery_loading_label, LV_OBJ_FLAG_HIDDEN);
+    else
+        lv_obj_add_flag(gallery_loading_label, LV_OBJ_FLAG_HIDDEN);
+}
 
 static void back_to_camera_cb(lv_event_t *e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) {
@@ -295,9 +308,12 @@ static void populate_gallery_list() {
         return;
     }
 
+    gallery_set_loading(true);
+
     lv_obj_clean(gallery_list);
 
     if (!refresh_gallery_cache()) {
+        gallery_set_loading(false);
         return;
     }
 
@@ -306,6 +322,7 @@ static void populate_gallery_list() {
         lv_obj_t *label = lv_label_create(gallery_list);
         lv_label_set_text(label, "No photos found");
         update_gallery_nav(total);
+        gallery_set_loading(false);
         return;
     }
 
@@ -347,6 +364,7 @@ static void populate_gallery_list() {
     }
 
     update_gallery_nav(total);
+    gallery_set_loading(false);
 }
 
 static void delete_photo_cb(lv_event_t *e) {
@@ -429,6 +447,13 @@ static void build_gallery_screen() {
     lv_obj_set_scroll_dir(gallery_list, LV_DIR_VER); // Changed to vertical scrolling
     lv_obj_set_scroll_snap_y(gallery_list, LV_SCROLL_SNAP_START); // Changed to Y axis
 
+    // Center loading label (hidden by default)
+    gallery_loading_label = lv_label_create(gallery_screen);
+    lv_label_set_text(gallery_loading_label, "Loading...");
+    lv_obj_set_style_text_font(gallery_loading_label, LV_FONT_DEFAULT, 0);
+    lv_obj_center(gallery_loading_label);
+    lv_obj_add_flag(gallery_loading_label, LV_OBJ_FLAG_HIDDEN);
+
     // Pagination controls
     lv_obj_t *nav_row = lv_obj_create(gallery_screen);
     lv_obj_set_width(nav_row, LV_PCT(100));
@@ -476,7 +501,32 @@ lv_obj_t *ui_get_gallery_screen(void) {
 void ui_gallery_show(void) {
     build_gallery_screen();
     Serial.println("Populating gallery list");
-    populate_gallery_list();
+    gallery_set_loading(true);
     ui_pause_camera_timer();
     lv_scr_load_anim(gallery_screen, LV_SCR_LOAD_ANIM_MOVE_LEFT, 200, 0, false);
+    // Populate after the screen animation finishes so "Loading..." is visible
+    if (gallery_populate_timer)
+    {
+        lv_timer_del(gallery_populate_timer);
+    }
+    // Allow a few frames (~0.5s) for the animation + label to render before SD scan
+    gallery_populate_timer = lv_timer_create(populate_gallery_list_timer_cb, 500, NULL);
+    lv_timer_set_repeat_count(gallery_populate_timer, 1);
+}
+
+static void populate_gallery_list_async_cb(void *data)
+{
+    LV_UNUSED(data);
+    populate_gallery_list();
+}
+
+static void populate_gallery_list_timer_cb(lv_timer_t *t)
+{
+    LV_UNUSED(t);
+    populate_gallery_list_async_cb(NULL);
+    if (gallery_populate_timer)
+    {
+        lv_timer_del(gallery_populate_timer);
+        gallery_populate_timer = nullptr;
+    }
 }
