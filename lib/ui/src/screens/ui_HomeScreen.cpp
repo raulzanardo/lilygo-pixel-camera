@@ -260,6 +260,7 @@ static const char *UI_PREF_EXPOSURE_CTRL_KEY = "exp_ctrl";
 static const char *UI_PREF_AEC_VALUE_KEY = "aec_value";
 static const char *UI_PREF_DITHER_KEY = "dither_type";
 static const char *UI_PREF_PIXEL_SIZE_KEY = "pixel_size";
+static const char *UI_PREF_AUTO_ADJUST_KEY = "auto_adjust";
 
 typedef struct
 {
@@ -603,6 +604,26 @@ int ui_get_aec_value(void)
         return val;
     }
     return 800;
+}
+
+bool ui_get_auto_adjust_enabled(void)
+{
+    Preferences prefs;
+    if (prefs.begin(UI_PREF_NAMESPACE, true))
+    {
+        bool val = prefs.getBool(UI_PREF_AUTO_ADJUST_KEY, false);
+        prefs.end();
+        return val;
+    }
+    return false;
+}
+
+void ui_set_auto_adjust_enabled(bool enabled)
+{
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putBool(UI_PREF_AUTO_ADJUST_KEY, enabled);
+    }
 }
 
 static void camera_video_play(lv_timer_t *t)

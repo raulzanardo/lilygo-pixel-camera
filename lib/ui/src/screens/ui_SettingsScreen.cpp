@@ -13,6 +13,23 @@ static lv_obj_t *ui_settings_back_btn = NULL;
 extern void ui_event_FlashSwitch(lv_event_t *e);
 extern bool camera_led_open_flag;
 
+static void ui_settings_auto_adjust_event(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+    {
+        return;
+    }
+
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+    {
+        return;
+    }
+
+    bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+    ui_set_auto_adjust_enabled(enabled);
+}
+
 static void ui_settings_back_event(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED)
@@ -123,6 +140,11 @@ static void build_settings_screen()
     lv_label_set_text(auto_adjust_label, "Auto adjust");
 
     ui_settings_auto_adjust_switch = lv_switch_create(auto_adjust_row);
+    if (ui_get_auto_adjust_enabled())
+    {
+        lv_obj_add_state(ui_settings_auto_adjust_switch, LV_STATE_CHECKED);
+    }
+    lv_obj_add_event_cb(ui_settings_auto_adjust_switch, ui_settings_auto_adjust_event, LV_EVENT_ALL, NULL);
 }
 
 lv_obj_t *ui_get_settings_screen(void)

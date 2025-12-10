@@ -40,6 +40,8 @@ bool ui_get_gain_ctrl_enabled(void);
 int ui_get_agc_gain(void);
 bool ui_get_exposure_ctrl_enabled(void);
 int ui_get_aec_value(void);
+bool ui_get_auto_adjust_enabled(void);
+void ui_set_auto_adjust_enabled(bool enabled);
 
 #ifdef __cplusplus
 } /*extern "C"*/
