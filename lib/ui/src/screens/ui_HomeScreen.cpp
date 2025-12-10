@@ -213,6 +213,11 @@ static const char *UI_PREF_NAMESPACE = "ui_state";
 static const char *UI_PREF_FILTER_KEY = "filter_mode";
 static const char *UI_PREF_PALETTE_KEY = "palette_idx";
 static const char *UI_PREF_FLASH_KEY = "flash_enabled";
+static const char *UI_PREF_AEC2_KEY = "aec2_enabled";
+static const char *UI_PREF_GAIN_CTRL_KEY = "gain_ctrl";
+static const char *UI_PREF_AGC_GAIN_KEY = "agc_gain";
+static const char *UI_PREF_EXPOSURE_CTRL_KEY = "exp_ctrl";
+static const char *UI_PREF_AEC_VALUE_KEY = "aec_value";
 
 typedef struct
 {
@@ -224,21 +229,31 @@ SemaphoreHandle_t cam_mutex;
 
 void camera_set_safe(void (*fn)(sensor_t *s))
 {
-    if (xSemaphoreTake(cam_mutex, pdMS_TO_TICKS(100)))
+    // Pause streaming to avoid SCCB bus contention
+    ui_pause_camera_timer();
+
+    // Wait for current timer callback to finish
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    // Drain all queued frame buffers from DMA
+    camera_fb_t *fb;
+    while ((fb = esp_camera_fb_get()) != NULL)
     {
-
-        // Make sure no frame is held
-        camera_fb_t *fb = esp_camera_fb_get();
-        if (fb)
-            esp_camera_fb_return(fb);
-
-        vTaskDelay(pdMS_TO_TICKS(30)); // OV3660 needs quiet time
-
-        sensor_t *s = esp_camera_sensor_get();
-        fn(s);
-
-        xSemaphoreGive(cam_mutex);
+        esp_camera_fb_return(fb);
     }
+
+    // OV3660 needs quiet time after DMA stops
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    sensor_t *s = esp_camera_sensor_get();
+    if (s)
+    {
+        fn(s);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    ui_resume_camera_timer();
 }
 
 static const palette_option_t kPaletteOptions[] = {
@@ -436,6 +451,66 @@ void ui_resume_camera_timer(void)
     }
 }
 
+bool ui_get_aec2_enabled(void)
+{
+    Preferences prefs;
+    if (prefs.begin(UI_PREF_NAMESPACE, true))
+    {
+        bool val = prefs.getBool(UI_PREF_AEC2_KEY, false);
+        prefs.end();
+        return val;
+    }
+    return false;
+}
+
+bool ui_get_gain_ctrl_enabled(void)
+{
+    Preferences prefs;
+    if (prefs.begin(UI_PREF_NAMESPACE, true))
+    {
+        bool val = prefs.getBool(UI_PREF_GAIN_CTRL_KEY, true); // Default enabled (AGC on)
+        prefs.end();
+        return val;
+    }
+    return true;
+}
+
+int ui_get_agc_gain(void)
+{
+    Preferences prefs;
+    if (prefs.begin(UI_PREF_NAMESPACE, true))
+    {
+        int val = prefs.getInt(UI_PREF_AGC_GAIN_KEY, 15);
+        prefs.end();
+        return val;
+    }
+    return 15;
+}
+
+bool ui_get_exposure_ctrl_enabled(void)
+{
+    Preferences prefs;
+    if (prefs.begin(UI_PREF_NAMESPACE, true))
+    {
+        bool val = prefs.getBool(UI_PREF_EXPOSURE_CTRL_KEY, true); // Default enabled (AEC on)
+        prefs.end();
+        return val;
+    }
+    return true;
+}
+
+int ui_get_aec_value(void)
+{
+    Preferences prefs;
+    if (prefs.begin(UI_PREF_NAMESPACE, true))
+    {
+        int val = prefs.getInt(UI_PREF_AEC_VALUE_KEY, 800);
+        prefs.end();
+        return val;
+    }
+    return 800;
+}
+
 static void camera_video_play(lv_timer_t *t)
 {
     // lv_async_call(cmaera_async_play, NULL);
@@ -540,7 +615,17 @@ static void ui_event_CameraSettingsButton(lv_event_t *e)
                                     EYE_COLOR_INACTIVE, 0);
     }
 }
-static void ui_event_FlipSwitch(lv_event_t *e)
+static bool aec2_pending_value = false;
+
+static void set_aec2_callback(sensor_t *s)
+{
+    if (s)
+    {
+        s->set_aec2(s, aec2_pending_value ? 1 : 0);
+    }
+}
+
+static void ui_event_AEC2Switch(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
     {
@@ -554,6 +639,71 @@ static void ui_event_FlipSwitch(lv_event_t *e)
     }
 
     bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putBool(UI_PREF_AEC2_KEY, enabled);
+    }
+    ESP.restart();
+}
+
+static void ui_event_GainCtrlSwitch(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+        return;
+    bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putBool(UI_PREF_GAIN_CTRL_KEY, enabled);
+    }
+    ESP.restart();
+}
+
+static void ui_event_AgcGainSlider(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+        return;
+    int value = lv_slider_get_value(target);
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putInt(UI_PREF_AGC_GAIN_KEY, value);
+    }
+    ESP.restart();
+}
+
+static void ui_event_ExposureCtrlSwitch(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+        return;
+    bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putBool(UI_PREF_EXPOSURE_CTRL_KEY, enabled);
+    }
+    ESP.restart();
+}
+
+static void ui_event_AecValueSlider(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+        return;
+    int value = lv_slider_get_value(target);
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putInt(UI_PREF_AEC_VALUE_KEY, value);
+    }
+    ESP.restart();
 }
 
 static void ui_event_GalleryButton(lv_event_t *e)
@@ -648,6 +798,11 @@ void ui_event_StorageSwitch(lv_event_t *e)
 
 void ui_HomeScreen_screen_init(void)
 {
+    if (cam_mutex == NULL)
+    {
+        cam_mutex = xSemaphoreCreateMutex();
+    }
+
     ui_HomeScreen = lv_obj_create(NULL);
     lv_obj_clear_flag(ui_HomeScreen, LV_OBJ_FLAG_SCROLLABLE); /// Flags
 
@@ -814,10 +969,97 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_flex_align(camera_setting_flip_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     lv_obj_t *setting_label = lv_label_create(camera_setting_flip_row);
-    lv_label_set_text(setting_label, "Flip");
+    lv_label_set_text(setting_label, "AEC2");
 
     lv_obj_t *ui_settings_switch = lv_switch_create(camera_setting_flip_row);
-    lv_obj_add_event_cb(ui_settings_switch, ui_event_FlipSwitch, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(ui_settings_switch, ui_event_AEC2Switch, LV_EVENT_ALL, NULL);
+    // Initialize switch state from preferences
+    if (ui_prefs_ready && ui_prefs.getBool(UI_PREF_AEC2_KEY, false))
+    {
+        lv_obj_add_state(ui_settings_switch, LV_STATE_CHECKED);
+    }
+
+    // --- Gain Control (AGC) Switch ---
+    lv_obj_t *gain_ctrl_row = lv_obj_create(ui_camera_settings_column);
+    lv_obj_set_width(gain_ctrl_row, LV_PCT(100));
+    lv_obj_set_height(gain_ctrl_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(gain_ctrl_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(gain_ctrl_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(gain_ctrl_row, 0, 0);
+    lv_obj_set_style_pad_all(gain_ctrl_row, 0, 0);
+    lv_obj_set_flex_flow(gain_ctrl_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(gain_ctrl_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *gain_ctrl_label = lv_label_create(gain_ctrl_row);
+    lv_label_set_text(gain_ctrl_label, "AGC");
+
+    lv_obj_t *gain_ctrl_switch = lv_switch_create(gain_ctrl_row);
+    lv_obj_add_event_cb(gain_ctrl_switch, ui_event_GainCtrlSwitch, LV_EVENT_ALL, NULL);
+    if (ui_prefs_ready && ui_prefs.getBool(UI_PREF_GAIN_CTRL_KEY, true))
+    {
+        lv_obj_add_state(gain_ctrl_switch, LV_STATE_CHECKED);
+    }
+
+    // --- AGC Gain Slider ---
+    lv_obj_t *agc_gain_row = lv_obj_create(ui_camera_settings_column);
+    lv_obj_set_width(agc_gain_row, LV_PCT(100));
+    lv_obj_set_height(agc_gain_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(agc_gain_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(agc_gain_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(agc_gain_row, 0, 0);
+    lv_obj_set_style_pad_all(agc_gain_row, 0, 0);
+    lv_obj_set_flex_flow(agc_gain_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(agc_gain_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *agc_gain_label = lv_label_create(agc_gain_row);
+    lv_label_set_text(agc_gain_label, "Gain");
+
+    lv_obj_t *agc_gain_slider = lv_slider_create(agc_gain_row);
+    lv_obj_set_width(agc_gain_slider, 100);
+    lv_slider_set_range(agc_gain_slider, 0, 30);
+    lv_slider_set_value(agc_gain_slider, ui_prefs_ready ? ui_prefs.getInt(UI_PREF_AGC_GAIN_KEY, 15) : 15, LV_ANIM_OFF);
+    lv_obj_add_event_cb(agc_gain_slider, ui_event_AgcGainSlider, LV_EVENT_ALL, NULL);
+
+    // --- Exposure Control (AEC) Switch ---
+    lv_obj_t *exp_ctrl_row = lv_obj_create(ui_camera_settings_column);
+    lv_obj_set_width(exp_ctrl_row, LV_PCT(100));
+    lv_obj_set_height(exp_ctrl_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(exp_ctrl_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(exp_ctrl_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(exp_ctrl_row, 0, 0);
+    lv_obj_set_style_pad_all(exp_ctrl_row, 0, 0);
+    lv_obj_set_flex_flow(exp_ctrl_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(exp_ctrl_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *exp_ctrl_label = lv_label_create(exp_ctrl_row);
+    lv_label_set_text(exp_ctrl_label, "AEC");
+
+    lv_obj_t *exp_ctrl_switch = lv_switch_create(exp_ctrl_row);
+    lv_obj_add_event_cb(exp_ctrl_switch, ui_event_ExposureCtrlSwitch, LV_EVENT_ALL, NULL);
+    if (ui_prefs_ready && ui_prefs.getBool(UI_PREF_EXPOSURE_CTRL_KEY, true))
+    {
+        lv_obj_add_state(exp_ctrl_switch, LV_STATE_CHECKED);
+    }
+
+    // --- AEC Value Slider ---
+    lv_obj_t *aec_value_row = lv_obj_create(ui_camera_settings_column);
+    lv_obj_set_width(aec_value_row, LV_PCT(100));
+    lv_obj_set_height(aec_value_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(aec_value_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(aec_value_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(aec_value_row, 0, 0);
+    lv_obj_set_style_pad_all(aec_value_row, 0, 0);
+    lv_obj_set_flex_flow(aec_value_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(aec_value_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *aec_value_label = lv_label_create(aec_value_row);
+    lv_label_set_text(aec_value_label, "Exp");
+
+    lv_obj_t *aec_value_slider = lv_slider_create(aec_value_row);
+    lv_obj_set_width(aec_value_slider, 100);
+    lv_slider_set_range(aec_value_slider, 0, 1200);
+    lv_slider_set_value(aec_value_slider, ui_prefs_ready ? ui_prefs.getInt(UI_PREF_AEC_VALUE_KEY, 800) : 800, LV_ANIM_OFF);
+    lv_obj_add_event_cb(aec_value_slider, ui_event_AecValueSlider, LV_EVENT_ALL, NULL);
 
     /* Hide initially */
     lv_obj_add_flag(ui_camera_settings_column, LV_OBJ_FLAG_HIDDEN);

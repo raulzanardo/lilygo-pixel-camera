@@ -639,21 +639,41 @@ void camera_init(void)
         {
             s->set_hmirror(s, 0);
             s->set_vflip(s, 1);
-            // s->set_agc_gain(s, 30);
+            
+            // Apply camera settings from preferences
+            bool aec2_enabled = ui_get_aec2_enabled();
+            s->set_aec2(s, aec2_enabled ? 1 : 0);
+            Serial.printf("AEC2: %s\n", aec2_enabled ? "enabled" : "disabled");
 
-            // s->set_lenc(s, 1);
+            if (aec2_enabled)
+            {
+                s->set_dcw(s, 1);  // Downsize cropping
+                s->set_bpc(s, 1);  // Bad pixel correction
+                s->set_wpc(s, 1);  // White pixel correction
+                Serial.println("DCW/BPC/WPC: enabled");
+            }
 
-            //  s->set_aec2(s, 1);
-            //  s->set_dcw(s, 1);
-            //  s->set_bpc(s, 1);
-            //  s->set_wpc(s, 1);
-            // s->set_aec_value(s, 0);
-            // s->set_ae_level(s, 2);
+            bool gain_ctrl = ui_get_gain_ctrl_enabled();
+            s->set_gain_ctrl(s, gain_ctrl ? 1 : 0);
+            Serial.printf("AGC: %s\n", gain_ctrl ? "enabled" : "disabled");
 
-            // s->set_exposure_ctrl(s, 0);
-            // s->set_whitebal(s, 0);
-            // s->set_awb_gain(s, 0);
-            // s->set_special_effect(s, 3);
+            if (!gain_ctrl)
+            {
+                int agc_gain = ui_get_agc_gain();
+                s->set_agc_gain(s, agc_gain);
+                Serial.printf("Manual gain: %d\n", agc_gain);
+            }
+
+            bool exp_ctrl = ui_get_exposure_ctrl_enabled();
+            s->set_exposure_ctrl(s, exp_ctrl ? 1 : 0);
+            Serial.printf("AEC: %s\n", exp_ctrl ? "enabled" : "disabled");
+
+            if (!exp_ctrl)
+            {
+                int aec_value = ui_get_aec_value();
+                s->set_aec_value(s, aec_value);
+                Serial.printf("Manual exposure: %d\n", aec_value);
+            }
         }
         else
         {

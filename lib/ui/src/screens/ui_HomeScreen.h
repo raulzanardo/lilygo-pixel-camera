@@ -32,6 +32,11 @@ void ui_pause_camera_timer(void);
 void ui_resume_camera_timer(void);
 void ui_event_FlashSwitch(lv_event_t *e);
 void ui_event_StorageSwitch(lv_event_t *e);
+bool ui_get_aec2_enabled(void);
+bool ui_get_gain_ctrl_enabled(void);
+int ui_get_agc_gain(void);
+bool ui_get_exposure_ctrl_enabled(void);
+int ui_get_aec_value(void);
 
 #ifdef __cplusplus
 } /*extern "C"*/
