@@ -197,6 +197,42 @@ static int current_dithering = 0; // 0=Off,1=Floyd-Steinberg,2=Bayer
 static int current_pixel_size = 1; // 1,2,4,8
 static lv_obj_t *ui_DitherDropdown = NULL;
 static lv_obj_t *ui_PixelSizeDropdown = NULL;
+static lv_obj_t *ui_photo_overlay_label = NULL;
+static lv_timer_t *photo_overlay_timer = NULL;
+
+static void photo_overlay_timer_cb(lv_timer_t *timer)
+{
+    LV_UNUSED(timer);
+    if (photo_overlay_timer)
+    {
+        lv_timer_del(photo_overlay_timer);
+        photo_overlay_timer = NULL;
+    }
+    if (ui_photo_overlay_label)
+    {
+        lv_label_set_text(ui_photo_overlay_label, "");
+        lv_obj_add_flag(ui_photo_overlay_label, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void ui_show_photo_overlay(const char *text)
+{
+    if (!ui_photo_overlay_label)
+    {
+        return;
+    }
+
+    if (photo_overlay_timer)
+    {
+        lv_timer_del(photo_overlay_timer);
+        photo_overlay_timer = NULL;
+    }
+
+    lv_label_set_text(ui_photo_overlay_label, text ? text : "");
+    lv_obj_clear_flag(ui_photo_overlay_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_align(ui_photo_overlay_label, LV_ALIGN_TOP_MID, 0, 4);
+    photo_overlay_timer = lv_timer_create(photo_overlay_timer_cb, 1200, NULL);
+}
 
 // Forward declarations for handlers used before definition
 void ui_event_FlashSwitch(lv_event_t *e);
@@ -961,6 +997,15 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_align(ui_camera_canvas, LV_ALIGN_TOP_LEFT);
     lv_obj_add_flag(ui_camera_canvas, LV_OBJ_FLAG_ADV_HITTEST);  /// Flags
     lv_obj_clear_flag(ui_camera_canvas, LV_OBJ_FLAG_SCROLLABLE); /// Flags
+
+    // Overlay label for photo taken feedback
+    ui_photo_overlay_label = lv_label_create(ui_camera_canvas);
+    lv_label_set_text(ui_photo_overlay_label, "");
+    lv_obj_set_style_bg_opa(ui_photo_overlay_label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_text_color(ui_photo_overlay_label, lv_color_white(), 0);
+    lv_obj_set_style_text_font(ui_photo_overlay_label, &lv_font_montserrat_18, 0);
+    lv_obj_align(ui_photo_overlay_label, LV_ALIGN_TOP_MID, 0, 4);
+    lv_obj_add_flag(ui_photo_overlay_label, LV_OBJ_FLAG_HIDDEN);
 
     ui_fps_label = lv_label_create(ui_camera_canvas);
     lv_label_set_text(ui_fps_label, "-- FPS");

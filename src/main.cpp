@@ -514,6 +514,7 @@ static bool save_frame_as_png(camera_fb_t *frame)
         Serial.printf("Saved photo to %s (%u x %u)\n", path, out_w, out_h);
         photo_prefs.putUInt(PHOTO_PREF_KEY, current_index);
         photo_counter = current_index + 1;
+        ui_show_photo_overlay("Photo saved");
     }
     return ok;
 }

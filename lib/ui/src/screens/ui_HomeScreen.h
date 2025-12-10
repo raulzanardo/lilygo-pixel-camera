@@ -29,6 +29,7 @@ lv_obj_t *ui_get_gallery_button(void);
 int ui_get_filter_mode(void);
 int ui_get_dither_type(void);
 int ui_get_pixel_size(void);
+void ui_show_photo_overlay(const char *text);
 
 void ui_pause_camera_timer(void);
 void ui_resume_camera_timer(void);
