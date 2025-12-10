@@ -193,6 +193,10 @@ static lv_obj_t *ui_camera_settings_icon = NULL;
 static lv_obj_t *ui_filter_column = NULL;
 static lv_obj_t *ui_camera_settings_column = NULL;
 static bool camera_settings_visible = false;
+static int current_dithering = 0; // 0=Off,1=Floyd-Steinberg,2=Bayer
+static int current_pixel_size = 1; // 1,2,4,8
+static lv_obj_t *ui_DitherDropdown = NULL;
+static lv_obj_t *ui_PixelSizeDropdown = NULL;
 
 // Forward declarations for handlers used before definition
 void ui_event_FlashSwitch(lv_event_t *e);
@@ -218,6 +222,8 @@ static const char *UI_PREF_GAIN_CTRL_KEY = "gain_ctrl";
 static const char *UI_PREF_AGC_GAIN_KEY = "agc_gain";
 static const char *UI_PREF_EXPOSURE_CTRL_KEY = "exp_ctrl";
 static const char *UI_PREF_AEC_VALUE_KEY = "aec_value";
+static const char *UI_PREF_DITHER_KEY = "dither_type";
+static const char *UI_PREF_PIXEL_SIZE_KEY = "pixel_size";
 
 typedef struct
 {
@@ -288,6 +294,46 @@ static inline int clamp_palette_index(int idx)
         return 0;
     }
     return idx;
+}
+
+static inline int clamp_dither_type(int v)
+{
+    if (v < 0 || v > 2)
+    {
+        return 0;
+    }
+    return v;
+}
+
+static inline int clamp_pixel_size(int v)
+{
+    switch (v)
+    {
+    case 1:
+    case 2:
+    case 4:
+    case 8:
+        return v;
+    default:
+        return 1;
+    }
+}
+
+static inline int pixel_size_to_index(int v)
+{
+    switch (v)
+    {
+    case 1:
+        return 0;
+    case 2:
+        return 1;
+    case 4:
+        return 2;
+    case 8:
+        return 3;
+    default:
+        return 0;
+    }
 }
 
 static const uint32_t *get_current_palette(int &out_size)
@@ -362,7 +408,7 @@ static void apply_selected_filter(camera_fb_t *frame)
     {
         int palette_size = 0;
         const uint32_t *palette = get_current_palette(palette_size);
-        applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, 1, 1, 2);
+        applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, current_dithering, current_pixel_size, 2);
     }
     break;
     case CAMERA_FILTER_EDGE:
@@ -765,6 +811,48 @@ void ui_event_PaletteDropdown(lv_event_t *e)
     ui_set_palette_index(static_cast<int>(selected_value));
 }
 
+static void ui_event_DitherDropdown(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+    {
+        return;
+    }
+    lv_obj_t *dropdown = lv_event_get_target(e);
+    if (!dropdown)
+    {
+        return;
+    }
+    int selected = static_cast<int>(lv_dropdown_get_selected(dropdown));
+    current_dithering = clamp_dither_type(selected);
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putInt(UI_PREF_DITHER_KEY, current_dithering);
+    }
+}
+
+static void ui_event_PixelSizeDropdown(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+    {
+        return;
+    }
+    lv_obj_t *dropdown = lv_event_get_target(e);
+    if (!dropdown)
+    {
+        return;
+    }
+    uint16_t sel = lv_dropdown_get_selected(dropdown);
+    // Options order must match creation list
+    const int kPixelOptions[] = {1, 2, 4, 8};
+    if (sel >= (sizeof(kPixelOptions) / sizeof(kPixelOptions[0])))
+        sel = 0;
+    current_pixel_size = clamp_pixel_size(kPixelOptions[sel]);
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putInt(UI_PREF_PIXEL_SIZE_KEY, current_pixel_size);
+    }
+}
+
 void ui_event_FlashSwitch(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
@@ -836,6 +924,8 @@ void ui_HomeScreen_screen_init(void)
             int stored_filter = ui_prefs.getInt(UI_PREF_FILTER_KEY, current_filter);
             current_filter = (camera_filter_t)stored_filter;
             current_palette_index = clamp_palette_index(ui_prefs.getInt(UI_PREF_PALETTE_KEY, current_palette_index));
+            current_dithering = clamp_dither_type(ui_prefs.getInt(UI_PREF_DITHER_KEY, current_dithering));
+            current_pixel_size = clamp_pixel_size(ui_prefs.getInt(UI_PREF_PIXEL_SIZE_KEY, current_pixel_size));
             camera_led_open_flag = ui_prefs.getBool(UI_PREF_FLASH_KEY, camera_led_open_flag);
         }
     }
@@ -958,6 +1048,35 @@ void ui_HomeScreen_screen_init(void)
         "VGA 16-color\n"
         "Fresta");
     lv_dropdown_set_selected(ui_PaletteDropdown, current_palette_index);
+
+    /* Dithering dropdown */
+    ui_DitherDropdown = lv_dropdown_create(ui_filter_column);
+    lv_obj_set_width(ui_DitherDropdown, LV_PCT(100));
+    lv_obj_set_height(ui_DitherDropdown, 48);
+    lv_obj_add_flag(ui_DitherDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    lv_obj_add_event_cb(ui_DitherDropdown, ui_event_DitherDropdown, LV_EVENT_ALL, NULL);
+    lv_obj_set_style_pad_ver(ui_DitherDropdown, 12, LV_PART_MAIN);
+    lv_dropdown_set_options_static(
+        ui_DitherDropdown,
+        "Off\n"
+        "Floyd-Steinberg\n"
+        "Bayer");
+    lv_dropdown_set_selected(ui_DitherDropdown, current_dithering);
+
+    /* Pixel size dropdown */
+    ui_PixelSizeDropdown = lv_dropdown_create(ui_filter_column);
+    lv_obj_set_width(ui_PixelSizeDropdown, LV_PCT(100));
+    lv_obj_set_height(ui_PixelSizeDropdown, 48);
+    lv_obj_add_flag(ui_PixelSizeDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    lv_obj_add_event_cb(ui_PixelSizeDropdown, ui_event_PixelSizeDropdown, LV_EVENT_ALL, NULL);
+    lv_obj_set_style_pad_ver(ui_PixelSizeDropdown, 12, LV_PART_MAIN);
+    lv_dropdown_set_options_static(
+        ui_PixelSizeDropdown,
+        "1\n"
+        "2\n"
+        "4\n"
+        "8");
+    lv_dropdown_set_selected(ui_PixelSizeDropdown, pixel_size_to_index(current_pixel_size));
 
     /* Camera settings column (hidden by default) */
     ui_camera_settings_column = lv_obj_create(ui_bottom_panel);
