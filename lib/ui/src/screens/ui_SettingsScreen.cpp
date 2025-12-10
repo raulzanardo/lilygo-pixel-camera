@@ -6,6 +6,7 @@
 static lv_obj_t *ui_settings_screen = NULL;
 static lv_obj_t *ui_settings_flash_switch = NULL;
 static lv_obj_t *ui_settings_storage_switch = NULL;
+static lv_obj_t *ui_settings_auto_adjust_switch = NULL;
 static lv_obj_t *ui_settings_back_btn = NULL;
 
 // Forward declaration
@@ -103,6 +104,25 @@ static void build_settings_screen()
 
     ui_settings_storage_switch = lv_switch_create(storage_row);
     lv_obj_add_event_cb(ui_settings_storage_switch, ui_event_StorageSwitch, LV_EVENT_ALL, NULL);
+
+
+        // auto adjust toggle
+    lv_obj_t *auto_adjust_row = lv_obj_create(ui_settings_screen);
+    lv_obj_set_width(auto_adjust_row, LV_PCT(100));
+    lv_obj_set_height(auto_adjust_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(auto_adjust_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(auto_adjust_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(  auto_adjust_row, 0, 0);
+    lv_obj_set_style_pad_all(auto_adjust_row, 0, 0);
+    lv_obj_set_style_pad_row(auto_adjust_row, 8, 0);
+    lv_obj_set_style_pad_column(auto_adjust_row, 8, 0);
+    lv_obj_set_flex_flow(auto_adjust_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(auto_adjust_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER); 
+
+    lv_obj_t *auto_adjust_label = lv_label_create(auto_adjust_row);
+    lv_label_set_text(auto_adjust_label, "Auto adjust");
+
+    ui_settings_auto_adjust_switch = lv_switch_create(auto_adjust_row);
 }
 
 lv_obj_t *ui_get_settings_screen(void)
