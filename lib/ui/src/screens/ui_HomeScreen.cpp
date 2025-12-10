@@ -226,6 +226,8 @@ typedef struct
 } palette_option_t;
 
 SemaphoreHandle_t cam_mutex;
+static lv_obj_t *ui_agc_gain_slider = NULL;
+static lv_obj_t *ui_aec_value_slider = NULL;
 
 void camera_set_safe(void (*fn)(sensor_t *s))
 {
@@ -658,12 +660,22 @@ static void ui_event_GainCtrlSwitch(lv_event_t *e)
     {
         ui_prefs.putBool(UI_PREF_GAIN_CTRL_KEY, enabled);
     }
+    if (ui_agc_gain_slider)
+    {
+        if (enabled)
+            lv_obj_add_state(ui_agc_gain_slider, LV_STATE_DISABLED);
+        else
+            lv_obj_clear_state(ui_agc_gain_slider, LV_STATE_DISABLED);
+    }
     ESP.restart();
 }
 
 static void ui_event_AgcGainSlider(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    // Don't restart if AGC is enabled (slider is just for display)
+    if (ui_prefs_ready && ui_prefs.getBool(UI_PREF_GAIN_CTRL_KEY, true))
         return;
     lv_obj_t *target = lv_event_get_target(e);
     if (!target)
@@ -688,12 +700,22 @@ static void ui_event_ExposureCtrlSwitch(lv_event_t *e)
     {
         ui_prefs.putBool(UI_PREF_EXPOSURE_CTRL_KEY, enabled);
     }
+    if (ui_aec_value_slider)
+    {
+        if (enabled)
+            lv_obj_add_state(ui_aec_value_slider, LV_STATE_DISABLED);
+        else
+            lv_obj_clear_state(ui_aec_value_slider, LV_STATE_DISABLED);
+    }
     ESP.restart();
 }
 
 static void ui_event_AecValueSlider(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    // Don't restart if AEC is enabled (slider is just for display)
+    if (ui_prefs_ready && ui_prefs.getBool(UI_PREF_EXPOSURE_CTRL_KEY, true))
         return;
     lv_obj_t *target = lv_event_get_target(e);
     if (!target)
@@ -1014,11 +1036,22 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_t *agc_gain_label = lv_label_create(agc_gain_row);
     lv_label_set_text(agc_gain_label, "Gain");
 
-    lv_obj_t *agc_gain_slider = lv_slider_create(agc_gain_row);
+    ui_agc_gain_slider = lv_slider_create(agc_gain_row);
+    lv_obj_t *agc_gain_slider = ui_agc_gain_slider;
     lv_obj_set_width(agc_gain_slider, 100);
     lv_slider_set_range(agc_gain_slider, 0, 30);
     lv_slider_set_value(agc_gain_slider, ui_prefs_ready ? ui_prefs.getInt(UI_PREF_AGC_GAIN_KEY, 15) : 15, LV_ANIM_OFF);
     lv_obj_add_event_cb(agc_gain_slider, ui_event_AgcGainSlider, LV_EVENT_ALL, NULL);
+    // Greyed-out style when disabled
+    lv_obj_set_style_bg_color(agc_gain_slider, lv_color_hex(0x888888), LV_PART_MAIN | LV_STATE_DISABLED);
+    lv_obj_set_style_bg_opa(agc_gain_slider, LV_OPA_40, LV_PART_MAIN | LV_STATE_DISABLED);
+    lv_obj_set_style_bg_color(agc_gain_slider, lv_color_hex(0x888888), LV_PART_KNOB | LV_STATE_DISABLED);
+    lv_obj_set_style_bg_opa(agc_gain_slider, LV_OPA_60, LV_PART_KNOB | LV_STATE_DISABLED);
+    // Disable slider if AGC is enabled
+    if (ui_prefs_ready && ui_prefs.getBool(UI_PREF_GAIN_CTRL_KEY, true))
+    {
+        lv_obj_add_state(agc_gain_slider, LV_STATE_DISABLED);
+    }
 
     // --- Exposure Control (AEC) Switch ---
     lv_obj_t *exp_ctrl_row = lv_obj_create(ui_camera_settings_column);
@@ -1055,11 +1088,22 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_t *aec_value_label = lv_label_create(aec_value_row);
     lv_label_set_text(aec_value_label, "Exp");
 
-    lv_obj_t *aec_value_slider = lv_slider_create(aec_value_row);
+    ui_aec_value_slider = lv_slider_create(aec_value_row);
+    lv_obj_t *aec_value_slider = ui_aec_value_slider;
     lv_obj_set_width(aec_value_slider, 100);
     lv_slider_set_range(aec_value_slider, 0, 1200);
     lv_slider_set_value(aec_value_slider, ui_prefs_ready ? ui_prefs.getInt(UI_PREF_AEC_VALUE_KEY, 800) : 800, LV_ANIM_OFF);
     lv_obj_add_event_cb(aec_value_slider, ui_event_AecValueSlider, LV_EVENT_ALL, NULL);
+    // Greyed-out style when disabled
+    lv_obj_set_style_bg_color(aec_value_slider, lv_color_hex(0x888888), LV_PART_MAIN | LV_STATE_DISABLED);
+    lv_obj_set_style_bg_opa(aec_value_slider, LV_OPA_40, LV_PART_MAIN | LV_STATE_DISABLED);
+    lv_obj_set_style_bg_color(aec_value_slider, lv_color_hex(0x888888), LV_PART_KNOB | LV_STATE_DISABLED);
+    lv_obj_set_style_bg_opa(aec_value_slider, LV_OPA_60, LV_PART_KNOB | LV_STATE_DISABLED);
+    // Disable slider if AEC is enabled
+    if (ui_prefs_ready && ui_prefs.getBool(UI_PREF_EXPOSURE_CTRL_KEY, true))
+    {
+        lv_obj_add_state(aec_value_slider, LV_STATE_DISABLED);
+    }
 
     /* Hide initially */
     lv_obj_add_flag(ui_camera_settings_column, LV_OBJ_FLAG_HIDDEN);
