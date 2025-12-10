@@ -1090,10 +1090,10 @@ void ui_HomeScreen_screen_init(void)
     /* Filter dropdown */
     ui_FilterDropdown = lv_dropdown_create(ui_filter_column);
     lv_obj_set_width(ui_FilterDropdown, LV_PCT(100));
-    lv_obj_set_height(ui_FilterDropdown, 48);
+    lv_obj_set_height(ui_FilterDropdown, 42);
     lv_obj_add_flag(ui_FilterDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_add_event_cb(ui_FilterDropdown, ui_event_Dropdown1, LV_EVENT_ALL, NULL);
-    lv_obj_set_style_pad_ver(ui_FilterDropdown, 12, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(ui_FilterDropdown, 10, LV_PART_MAIN);
 
     lv_dropdown_set_options_static(
         ui_FilterDropdown,
@@ -1103,10 +1103,10 @@ void ui_HomeScreen_screen_init(void)
     /* Palette dropdown */
     ui_PaletteDropdown = lv_dropdown_create(ui_filter_column);
     lv_obj_set_width(ui_PaletteDropdown, LV_PCT(100));
-    lv_obj_set_height(ui_PaletteDropdown, 48);
+    lv_obj_set_height(ui_PaletteDropdown, 42);
     lv_obj_add_flag(ui_PaletteDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_add_event_cb(ui_PaletteDropdown, ui_event_PaletteDropdown, LV_EVENT_ALL, NULL);
-    lv_obj_set_style_pad_ver(ui_PaletteDropdown, 12, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(ui_PaletteDropdown, 10, LV_PART_MAIN);
 
     lv_dropdown_set_options_static(
         ui_PaletteDropdown,
@@ -1133,10 +1133,10 @@ void ui_HomeScreen_screen_init(void)
     /* Dithering dropdown */
     ui_DitherDropdown = lv_dropdown_create(ui_filter_column);
     lv_obj_set_width(ui_DitherDropdown, LV_PCT(100));
-    lv_obj_set_height(ui_DitherDropdown, 48);
+    lv_obj_set_height(ui_DitherDropdown, 42);
     lv_obj_add_flag(ui_DitherDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_add_event_cb(ui_DitherDropdown, ui_event_DitherDropdown, LV_EVENT_ALL, NULL);
-    lv_obj_set_style_pad_ver(ui_DitherDropdown, 12, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(ui_DitherDropdown, 10, LV_PART_MAIN);
     lv_dropdown_set_options_static(
         ui_DitherDropdown,
         "Off\n"
@@ -1147,10 +1147,10 @@ void ui_HomeScreen_screen_init(void)
     /* Pixel size dropdown */
     ui_PixelSizeDropdown = lv_dropdown_create(ui_filter_column);
     lv_obj_set_width(ui_PixelSizeDropdown, LV_PCT(100));
-    lv_obj_set_height(ui_PixelSizeDropdown, 48);
+    lv_obj_set_height(ui_PixelSizeDropdown, 42);
     lv_obj_add_flag(ui_PixelSizeDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_add_event_cb(ui_PixelSizeDropdown, ui_event_PixelSizeDropdown, LV_EVENT_ALL, NULL);
-    lv_obj_set_style_pad_ver(ui_PixelSizeDropdown, 12, LV_PART_MAIN);
+    lv_obj_set_style_pad_ver(ui_PixelSizeDropdown, 10, LV_PART_MAIN);
     lv_dropdown_set_options_static(
         ui_PixelSizeDropdown,
         "1\n"
