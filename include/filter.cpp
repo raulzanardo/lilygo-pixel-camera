@@ -1604,6 +1604,16 @@ void applyAutoAdjust(camera_fb_t *cameraFb)
     float midTone = (minVal + maxVal) / 2.0f;
     float gamma = (midTone < 128) ? 1.2f : 0.8f;  // Lighten dark images, darken bright images
 
+    // Precompute gamma-adjusted lookup to avoid per-pixel powf
+    uint8_t gamma_lut[256];
+    for (int i = 0; i < 256; ++i)
+    {
+        float v = i * contrast + brightness;
+        v = max(0.0f, min(255.0f, v));
+        v = pow(v / 255.0f, gamma) * 255.0f;
+        gamma_lut[i] = static_cast<uint8_t>(v + 0.5f);
+    }
+
     // Apply adjustments to each pixel
     for (int i = 0; i < totalPixels; i++)
     {
@@ -1619,20 +1629,10 @@ void applyAutoAdjust(camera_fb_t *cameraFb)
         uint8_t g = ((pixel >> 5) & 0x3F) << 2;
         uint8_t b = (pixel & 0x1F) << 3;
         
-        // Apply contrast and brightness
-        float rf = r * contrast + brightness;
-        float gf = g * contrast + brightness;
-        float bf = b * contrast + brightness;
-        
-        // Clamp to 0-255
-        rf = max(0.0f, min(255.0f, rf));
-        gf = max(0.0f, min(255.0f, gf));
-        bf = max(0.0f, min(255.0f, bf));
-        
-        // Apply gamma correction
-        rf = pow(rf / 255.0f, gamma) * 255.0f;
-        gf = pow(gf / 255.0f, gamma) * 255.0f;
-        bf = pow(bf / 255.0f, gamma) * 255.0f;
+        // Apply contrast/brightness + gamma via LUT
+        uint8_t rf = gamma_lut[r];
+        uint8_t gf = gamma_lut[g];
+        uint8_t bf = gamma_lut[b];
         
         // Convert back to RGB565
         uint8_t r5 = (uint8_t)rf >> 3;
