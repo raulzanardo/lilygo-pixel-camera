@@ -1073,9 +1073,9 @@ void ui_HomeScreen_screen_init(void)
     lv_dropdown_set_options_static(
         ui_PixelSizeDropdown,
         "1\n"
-        "2\n"
-        "4\n"
-        "8");
+        "2x2\n"
+        "4x4\n"
+        "8x8");
     lv_dropdown_set_selected(ui_PixelSizeDropdown, pixel_size_to_index(current_pixel_size));
 
     /* Camera settings column (hidden by default) */

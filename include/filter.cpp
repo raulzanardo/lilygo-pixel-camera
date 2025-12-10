@@ -46,8 +46,6 @@ void applyDithering(camera_fb_t *cameraFb, int redBits, int greenBits, int blueB
 
     // GC0308 outputs RGB565 little-endian frames, so no byte swapping is required.
     const bool swapBytes = true;
-
-    // Bayer matrix definitions
     const int bayer2x2[2][2] = {
         {0, 2},
         {3, 1}
@@ -313,8 +311,10 @@ void applyDithering(camera_fb_t *cameraFb, int redBits, int greenBits, int blueB
                     bayerValue = bayer8x8[bayerY][bayerX];
                 }
 
-                // Calculate threshold (normalize to 0-255 range)
-                float threshold = (bayerValue / (float)bayerDivisor) * 255.0f;
+                // Calculate threshold (normalize to 0-255 range) centered around 0
+                // Use +0.5 to center the Bayer cell and avoid negative bias that darkened
+                // the image when pixelSize > 1.
+                float threshold = (((bayerValue + 0.5f) / (float)bayerDivisor) - 0.5f) * 255.0f;
 
                 // Apply threshold and quantize
                 float thresholdedR = oldR + threshold - 127.5f;
@@ -524,6 +524,9 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
 
     // GC0308 outputs RGB565 little-endian frames, so no byte swapping is required.
     const bool swapBytes = true;
+    const int origWidth = width;
+    const int origHeight = height;
+    const int downscale = (pixelSize == 2 || pixelSize == 4 || pixelSize == 8) ? pixelSize : 1;
 
     // Bayer matrix definitions
     const int bayer2x2[2][2] = {
@@ -557,34 +560,102 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
 
     int bayerDivisor = (bayerSize == 2) ? 4 : (bayerSize == 4) ? 16 : 64;
 
+    // Downscale if requested (2x2, 4x4, 8x8)
+    uint16_t *workingBuffer = imageBuffer;
+    int workWidth = width;
+    int workHeight = height;
+    bool usedDownscale = false;
+    uint16_t *downscaledBuffer = nullptr;
+
+    if (downscale > 1)
+    {
+        workWidth = (width + downscale - 1) / downscale;
+        workHeight = (height + downscale - 1) / downscale;
+        downscaledBuffer = (uint16_t *)ps_malloc(workWidth * workHeight * sizeof(uint16_t));
+        if (!downscaledBuffer)
+        {
+            return;
+        }
+
+        for (int by = 0; by < height; by += downscale)
+        {
+            for (int bx = 0; bx < width; bx += downscale)
+            {
+                uint32_t sumR = 0, sumG = 0, sumB = 0;
+                int count = 0;
+                for (int dy = 0; dy < downscale && (by + dy) < height; ++dy)
+                {
+                    for (int dx = 0; dx < downscale && (bx + dx) < width; ++dx)
+                    {
+                        int srcIdx = (by + dy) * width + (bx + dx);
+                        uint16_t px = imageBuffer[srcIdx];
+                        if (swapBytes)
+                        {
+                            px = ((px << 8) | (px >> 8));
+                        }
+                        uint8_t r = ((px >> 11) & 0x1F) << 3;
+                        uint8_t g = ((px >> 5) & 0x3F) << 2;
+                        uint8_t b = (px & 0x1F) << 3;
+                        sumR += r;
+                        sumG += g;
+                        sumB += b;
+                        ++count;
+                    }
+                }
+
+                uint8_t avgR = count ? (sumR / count) : 0;
+                uint8_t avgG = count ? (sumG / count) : 0;
+                uint8_t avgB = count ? (sumB / count) : 0;
+
+                uint16_t avgPixel = ((avgR >> 3) << 11) | ((avgG >> 2) << 5) | (avgB >> 3);
+                if (swapBytes)
+                {
+                    avgPixel = ((avgPixel << 8) | (avgPixel >> 8));
+                }
+
+                int dstIdx = (by / downscale) * workWidth + (bx / downscale);
+                downscaledBuffer[dstIdx] = avgPixel;
+            }
+        }
+
+        workingBuffer = downscaledBuffer;
+        usedDownscale = true;
+        pixelSize = 1; // internal processing uses native resolution
+    }
+
     // Allocate memory using PSRAM for buffers
-    uint16_t *outputBuffer = (uint16_t *)ps_malloc(width * height * sizeof(uint16_t));
+    uint16_t *outputBuffer = (uint16_t *)ps_malloc(workWidth * workHeight * sizeof(uint16_t));
     float *redErrorBuffer = nullptr;
     float *greenErrorBuffer = nullptr;
     float *blueErrorBuffer = nullptr;
 
     if (!outputBuffer)
     {
+        if (downscaledBuffer)
+        {
+            free(downscaledBuffer);
+        }
         return;
     }
 
     // Allocate error buffers only if Floyd-Steinberg dithering is enabled
     if (dithering == 1)
     {
-        redErrorBuffer = (float *)ps_malloc(width * height * sizeof(float));
-        greenErrorBuffer = (float *)ps_malloc(width * height * sizeof(float));
-        blueErrorBuffer = (float *)ps_malloc(width * height * sizeof(float));
+        redErrorBuffer = (float *)ps_malloc(workWidth * workHeight * sizeof(float));
+        greenErrorBuffer = (float *)ps_malloc(workWidth * workHeight * sizeof(float));
+        blueErrorBuffer = (float *)ps_malloc(workWidth * workHeight * sizeof(float));
 
         if (!redErrorBuffer || !greenErrorBuffer || !blueErrorBuffer)
         {
             if (outputBuffer)
-                free(outputBuffer);
             if (redErrorBuffer)
                 free(redErrorBuffer);
             if (greenErrorBuffer)
                 free(greenErrorBuffer);
             if (blueErrorBuffer)
                 free(blueErrorBuffer);
+            if (downscaledBuffer)
+                free(downscaledBuffer);
             return;
         }
     }
@@ -592,9 +663,9 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
     // Initialize error buffers with original pixel values (only if Floyd-Steinberg is enabled)
     if (dithering == 1)
     {
-        for (int i = 0; i < width * height; i++)
+        for (int i = 0; i < workWidth * workHeight; i++)
         {
-            uint16_t pixel = imageBuffer[i];
+            uint16_t pixel = workingBuffer[i];
 
             if (swapBytes)
             {
@@ -615,16 +686,16 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
     const float f1_16 = 1.0f / 16.0f;
 
     // Process each pixel
-    for (int y = 0; y < height; y++)
+    for (int y = 0; y < workHeight; y++)
     {
         bool leftToRight = (y % 2 == 0);
-        int xStart = leftToRight ? 0 : width - 1;
-        int xEnd = leftToRight ? width : -1;
+        int xStart = leftToRight ? 0 : workWidth - 1;
+        int xEnd = leftToRight ? workWidth : -1;
         int xStep = leftToRight ? 1 : -1;
 
         for (int x = xStart; x != xEnd; x += xStep)
         {
-            int idx = y * width + x;
+            int idx = y * workWidth + x;
 
             // Get current pixel color
             uint8_t r, g, b;
@@ -635,9 +706,9 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
             {
                 int blockX = (x / pixelSize) * pixelSize + pixelSize / 2;
                 int blockY = (y / pixelSize) * pixelSize + pixelSize / 2;
-                blockX = constrain(blockX, 0, width - 1);
-                blockY = constrain(blockY, 0, height - 1);
-                sampleIdx = blockY * width + blockX;
+                blockX = constrain(blockX, 0, workWidth - 1);
+                blockY = constrain(blockY, 0, workHeight - 1);
+                sampleIdx = blockY * workWidth + blockX;
             }
 
             // Get color from appropriate source (error buffer for Floyd-Steinberg, image buffer otherwise)
@@ -651,7 +722,7 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
             else
             {
                 // Bayer and no dithering use image buffer directly
-                uint16_t pixel = imageBuffer[sampleIdx];
+                uint16_t pixel = workingBuffer[sampleIdx];
 
                 if (swapBytes)
                 {
@@ -761,16 +832,16 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
                 if (leftToRight)
                 {
                     // Left to right pattern
-                    if (x + 1 < width)
+                    if (x + 1 < workWidth)
                     {
                         redErrorBuffer[idx + 1] += errorR * f7_16;
                         greenErrorBuffer[idx + 1] += errorG * f7_16;
                         blueErrorBuffer[idx + 1] += errorB * f7_16;
                     }
 
-                    if (y + 1 < height)
+                    if (y + 1 < workHeight)
                     {
-                        int nextRow = (y + 1) * width;
+                        int nextRow = (y + 1) * workWidth;
 
                         if (x - 1 >= 0)
                         {
@@ -783,7 +854,7 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
                         greenErrorBuffer[nextRow + x] += errorG * f5_16;
                         blueErrorBuffer[nextRow + x] += errorB * f5_16;
 
-                        if (x + 1 < width)
+                        if (x + 1 < workWidth)
                         {
                             redErrorBuffer[nextRow + x + 1] += errorR * f1_16;
                             greenErrorBuffer[nextRow + x + 1] += errorG * f1_16;
@@ -801,11 +872,11 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
                         blueErrorBuffer[idx - 1] += errorB * f7_16;
                     }
 
-                    if (y + 1 < height)
+                    if (y + 1 < workHeight)
                     {
-                        int nextRow = (y + 1) * width;
+                        int nextRow = (y + 1) * workWidth;
 
-                        if (x + 1 < width)
+                        if (x + 1 < workWidth)
                         {
                             redErrorBuffer[nextRow + x + 1] += errorR * f3_16;
                             greenErrorBuffer[nextRow + x + 1] += errorG * f3_16;
@@ -828,8 +899,25 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
         }
     }
 
-    // Copy the processed image back to the input buffer
-    memcpy(imageBuffer, outputBuffer, width * height * sizeof(uint16_t));
+    // Copy the processed image back to the input buffer (with optional upscale)
+    if (usedDownscale)
+    {
+        for (int y = 0; y < origHeight; ++y)
+        {
+            int srcY = y / downscale;
+            for (int x = 0; x < origWidth; ++x)
+            {
+                int srcX = x / downscale;
+                int dstIdx = y * origWidth + x;
+                int srcIdx = srcY * workWidth + srcX;
+                imageBuffer[dstIdx] = outputBuffer[srcIdx];
+            }
+        }
+    }
+    else
+    {
+        memcpy(imageBuffer, outputBuffer, workWidth * workHeight * sizeof(uint16_t));
+    }
 
     // Free memory
     free(outputBuffer);
@@ -838,6 +926,10 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
         free(redErrorBuffer);
         free(greenErrorBuffer);
         free(blueErrorBuffer);
+    }
+    if (downscaledBuffer)
+    {
+        free(downscaledBuffer);
     }
 }
 
