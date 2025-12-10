@@ -408,7 +408,7 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
             palette = PALETTE_CYBERPUNK;
             palette_size = PALETTE_CYBERPUNK_SIZE;
         }
-        applyColorPalette(working.data(), out_w, out_h, palette, palette_size, 1, 2, 2);
+        applyColorPalette(working.data(), out_w, out_h, palette, palette_size, ui_get_dither_type(), ui_get_pixel_size(), 2);
     }
     break;
     case 3:

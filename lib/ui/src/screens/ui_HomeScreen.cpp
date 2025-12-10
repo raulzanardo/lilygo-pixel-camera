@@ -438,6 +438,16 @@ int ui_get_filter_mode(void)
     return static_cast<int>(current_filter);
 }
 
+int ui_get_dither_type(void)
+{
+    return current_dithering;
+}
+
+int ui_get_pixel_size(void)
+{
+    return current_pixel_size;
+}
+
 void ui_get_palette(const uint32_t **palette, int *size)
 {
     if (!palette || !size)
