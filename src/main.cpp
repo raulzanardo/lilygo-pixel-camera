@@ -8,7 +8,7 @@
 #include "esp_heap_caps.h"
 #include <FS.h>
 #include <SD.h>
-#include <cstring> 
+#include <cstring>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -19,7 +19,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <XPowersLib.h>
-
 
 extern "C"
 {
@@ -89,8 +88,6 @@ static lv_fs_res_t sd_fs_seek_cb(lv_fs_drv_t *drv, void *file_p, uint32_t pos, l
 static lv_fs_res_t sd_fs_tell_cb(lv_fs_drv_t *drv, void *file_p, uint32_t *pos);
 static void ensure_flash_power(bool enable);
 static bool ensure_pmu_ready();
-
-
 
 static void *png_file_open_cb(const char *filename)
 {
@@ -381,12 +378,9 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
     std::vector<uint16_t> working(pixel_count);
     uint16_t *src = reinterpret_cast<uint16_t *>(frame->buf);
 
-
-
-        out_w = width;
-        out_h = height;
-        memcpy(working.data(), src, pixel_count * sizeof(uint16_t));
-
+    out_w = width;
+    out_h = height;
+    memcpy(working.data(), src, pixel_count * sizeof(uint16_t));
 
     camera_fb_t temp_frame = *frame;
     temp_frame.buf = reinterpret_cast<uint8_t *>(working.data());
@@ -645,7 +639,7 @@ void camera_init(void)
         {
             s->set_hmirror(s, 0);
             s->set_vflip(s, 1);
-            
+
             // Apply camera settings from preferences
             bool aec2_enabled = ui_get_aec2_enabled();
             s->set_aec2(s, aec2_enabled ? 1 : 0);
@@ -653,9 +647,9 @@ void camera_init(void)
 
             if (aec2_enabled)
             {
-                s->set_dcw(s, 1);  // Downsize cropping
-                s->set_bpc(s, 1);  // Bad pixel correction
-                s->set_wpc(s, 1);  // White pixel correction
+                s->set_dcw(s, 1); // Downsize cropping
+                s->set_bpc(s, 1); // Bad pixel correction
+                s->set_wpc(s, 1); // White pixel correction
                 Serial.println("DCW/BPC/WPC: enabled");
             }
 
@@ -749,7 +743,12 @@ static bool ensure_pmu_ready()
     }
     pmu_ready = true;
     // Minimal setup: leave charge defaults, disable status LED, light measurement
-    PMU.disableStatLed();
+    // PMU.disableStatLed();
+    PMU.enableStatLed();
+    PMU.setChargeTargetVoltage(4352);
+    PMU.setPrechargeCurr(64);
+    PMU.setChargerConstantCurr(320);
+    PMU.enableADCMeasure();
     return true;
 }
 
@@ -759,7 +758,7 @@ void setup()
     Serial.begin(115200); /* prepare for possible serial debug */
 
     pinMode(BOARD_TFT_BL, OUTPUT);
-  digitalWrite(BOARD_TFT_BL, LOW); // Backlight OFF
+    digitalWrite(BOARD_TFT_BL, LOW); // Backlight OFF
 
     String LVGL_Arduino = "Hello Arduino! ";
     LVGL_Arduino += String('V') + lv_version_major() + "." + lv_version_minor() + "." + lv_version_patch();
@@ -773,11 +772,11 @@ void setup()
     lv_init();
     lv_png_init();
 
-    tft.begin();        /* TFT init */
-    tft.setRotation(0); /* Landscape orientation, flipped */
+    tft.begin();               /* TFT init */
+    tft.setRotation(0);        /* Landscape orientation, flipped */
     tft.fillScreen(TFT_BLACK); // Clear the screen to black
- digitalWrite(BOARD_TFT_BL, HIGH);
-  
+    digitalWrite(BOARD_TFT_BL, HIGH);
+
     lv_disp_draw_buf_init(&draw_buf, buf, NULL, screenWidth * screenHeight / 10);
 
     /* Initialize the display */
@@ -821,5 +820,5 @@ void loop()
     handle_user_buttons();
     update_led_flash();
     lv_task_handler();
-    //delay(2);
+    // delay(2);
 }
