@@ -373,15 +373,62 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
 {
     const uint16_t width = frame->width;
     const uint16_t height = frame->height;
-    const size_t pixel_count = static_cast<size_t>(width) * height;
+    size_t pixel_count = static_cast<size_t>(width) * height;
 
     std::vector<uint16_t> working(pixel_count);
     uint16_t *src = reinterpret_cast<uint16_t *>(frame->buf);
 
+    // Apply zoom crop if zoom is active (matching live preview behavior)
+    int zoom_level = ui_get_zoom_level();
+    if (zoom_level > 0)
+    {
+        // Digital zoom - crop center and scale
+        int crop_width, crop_height;
+        
+        if (zoom_level == 1)
+        {
+            // 2x zoom - crop half size from center
+            crop_width = width / 2;
+            crop_height = height / 2;
+        }
+        else // zoom_level == 2
+        {
+            // 4x zoom - crop quarter size from center
+            crop_width = width / 4;
+            crop_height = height / 4;
+        }
+        
+        // Calculate center crop position
+        int start_x = (width - crop_width) / 2;
+        int start_y = (height - crop_height) / 2;
+        
+        // Scale cropped region to full frame size
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                // Map to source crop coordinates
+                int src_x = start_x + (x * crop_width / width);
+                int src_y = start_y + (y * crop_height / height);
+                
+                // Bounds check
+                if (src_x >= width) src_x = width - 1;
+                if (src_y >= height) src_y = height - 1;
+                
+                working[y * width + x] = src[src_y * width + src_x];
+            }
+        }
+    }
+    else
+    {
+        // No zoom - direct copy
+        memcpy(working.data(), src, pixel_count * sizeof(uint16_t));
+    }
+
     out_w = width;
     out_h = height;
-    memcpy(working.data(), src, pixel_count * sizeof(uint16_t));
 
+    // Create temp frame pointing to our zoomed/processed buffer
     camera_fb_t temp_frame = *frame;
     temp_frame.buf = reinterpret_cast<uint8_t *>(working.data());
     temp_frame.width = out_w;

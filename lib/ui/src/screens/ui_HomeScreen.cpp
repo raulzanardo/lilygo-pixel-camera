@@ -651,6 +651,9 @@ void ui_set_zoom_level(int level)
     // Update zoom level
     current_zoom_level = level;
     
+    // Software zoom only - no hardware changes
+    // OV3660 sensor does not support dynamic frame size changes
+    
     // Update zoom label if it exists
     if (ui_zoom_label)
     {
@@ -670,8 +673,7 @@ void ui_set_zoom_level(int level)
         ui_prefs.putInt(UI_PREF_ZOOM_LEVEL_KEY, current_zoom_level);
     }
     
-    // Software zoom - no hardware changes needed
-    // Zoom is applied by cropping in camera_video_play
+    // Software zoom only - no hardware changes
 }
 
 static void camera_video_play(lv_timer_t *t)
@@ -701,18 +703,17 @@ static void camera_video_play(lv_timer_t *t)
         int target_width = 240;
         int target_height = 176;
         
-        // Camera captures at HQVGA (240x176)
-        // Digital zoom by cropping and scaling
+        // Software digital zoom - camera always at HQVGA
         
         if (current_zoom_level == 0)
         {
-            // 1x zoom - no zoom, just copy directly
+            // 1x zoom - no zoom, direct copy
             size_t pixel_count = frame->len / 2;
             copy_frame(dst_pixels, src_pixels, pixel_count);
         }
         else
         {
-            // 2x or 4x zoom - crop center and scale up (digital zoom)
+            // 2x or 4x digital zoom - crop center and scale up
             int crop_width, crop_height;
             
             if (current_zoom_level == 1)
@@ -732,16 +733,16 @@ static void camera_video_play(lv_timer_t *t)
             int start_x = (frame->width - crop_width) / 2;
             int start_y = (frame->height - crop_height) / 2;
             
-            // Scale cropped region to fill target display
+            // Scale cropped region to fill display
             for (int y = 0; y < target_height; y++)
             {
                 for (int x = 0; x < target_width; x++)
                 {
-                    // Map target coordinates to source crop coordinates
+                    // Map to source crop coordinates
                     int src_x = start_x + (x * crop_width / target_width);
                     int src_y = start_y + (y * crop_height / target_height);
                     
-                    // Bounds checking
+                    // Bounds check
                     if (src_x >= frame->width) src_x = frame->width - 1;
                     if (src_y >= frame->height) src_y = frame->height - 1;
                     
