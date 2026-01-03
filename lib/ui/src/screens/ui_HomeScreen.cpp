@@ -195,9 +195,11 @@ static lv_obj_t *ui_camera_settings_column = NULL;
 static bool camera_settings_visible = false;
 static int current_dithering = 0; // 0=Off,1=Floyd-Steinberg,2=Bayer
 static int current_pixel_size = 1; // 1,2,4,8
+static int current_zoom_level = 0; // 0=1x, 1=2x, 2=4x
 static lv_obj_t *ui_DitherDropdown = NULL;
 static lv_obj_t *ui_PixelSizeDropdown = NULL;
 static lv_obj_t *ui_photo_overlay_label = NULL;
+static lv_obj_t *ui_zoom_label = NULL;
 static lv_timer_t *photo_overlay_timer = NULL;
 
 static void photo_overlay_timer_cb(lv_timer_t *timer)
@@ -237,6 +239,7 @@ void ui_show_photo_overlay(const char *text)
 // Forward declarations for handlers used before definition
 void ui_event_FlashSwitch(lv_event_t *e);
 void ui_event_StorageSwitch(lv_event_t *e);
+void ui_event_CameraCanvasTap(lv_event_t *e);
 
 typedef enum
 {
@@ -261,6 +264,7 @@ static const char *UI_PREF_AEC_VALUE_KEY = "aec_value";
 static const char *UI_PREF_DITHER_KEY = "dither_type";
 static const char *UI_PREF_PIXEL_SIZE_KEY = "pixel_size";
 static const char *UI_PREF_AUTO_ADJUST_KEY = "auto_adjust";
+static const char *UI_PREF_ZOOM_LEVEL_KEY = "zoom_level";
 
 typedef struct
 {
@@ -631,6 +635,45 @@ void ui_set_auto_adjust_enabled(bool enabled)
     }
 }
 
+int ui_get_zoom_level(void)
+{
+    return current_zoom_level;
+}
+
+void ui_set_zoom_level(int level)
+{
+    // Clamp to valid range: 0=1x, 1=2x, 2=4x
+    if (level < 0 || level > 2)
+    {
+        level = 0;
+    }
+    
+    // Update zoom level
+    current_zoom_level = level;
+    
+    // Update zoom label if it exists
+    if (ui_zoom_label)
+    {
+        const char* zoom_text = "";
+        switch (level)
+        {
+            case 0: zoom_text = "1x"; break;
+            case 1: zoom_text = "2x"; break;
+            case 2: zoom_text = "4x"; break;
+        }
+        lv_label_set_text(ui_zoom_label, zoom_text);
+    }
+    
+    // Save preference
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putInt(UI_PREF_ZOOM_LEVEL_KEY, current_zoom_level);
+    }
+    
+    // Software zoom - no hardware changes needed
+    // Zoom is applied by cropping in camera_video_play
+}
+
 static void camera_video_play(lv_timer_t *t)
 {
     // lv_async_call(cmaera_async_play, NULL);
@@ -653,11 +696,63 @@ static void camera_video_play(lv_timer_t *t)
 
         uint16_t *dst_pixels = (uint16_t *)camera_canvas_buf;
         const uint16_t *src_pixels = (const uint16_t *)frame->buf;
-        size_t pixel_count = frame->len / 2;
-
-
-        copy_frame(dst_pixels, src_pixels, pixel_count);
-        lv_canvas_set_buffer(ui_camera_canvas, camera_canvas_buf, frame->width, frame->height, LV_IMG_CF_TRUE_COLOR);
+        
+        // Target display size is always 240x176 (HQVGA)
+        int target_width = 240;
+        int target_height = 176;
+        
+        // Camera captures at HQVGA (240x176)
+        // Digital zoom by cropping and scaling
+        
+        if (current_zoom_level == 0)
+        {
+            // 1x zoom - no zoom, just copy directly
+            size_t pixel_count = frame->len / 2;
+            copy_frame(dst_pixels, src_pixels, pixel_count);
+        }
+        else
+        {
+            // 2x or 4x zoom - crop center and scale up (digital zoom)
+            int crop_width, crop_height;
+            
+            if (current_zoom_level == 1)
+            {
+                // 2x zoom - crop half size from center
+                crop_width = target_width / 2;   // 120
+                crop_height = target_height / 2; // 88
+            }
+            else // current_zoom_level == 2
+            {
+                // 4x zoom - crop quarter size from center
+                crop_width = target_width / 4;   // 60
+                crop_height = target_height / 4; // 44
+            }
+            
+            // Calculate center crop position
+            int start_x = (frame->width - crop_width) / 2;
+            int start_y = (frame->height - crop_height) / 2;
+            
+            // Scale cropped region to fill target display
+            for (int y = 0; y < target_height; y++)
+            {
+                for (int x = 0; x < target_width; x++)
+                {
+                    // Map target coordinates to source crop coordinates
+                    int src_x = start_x + (x * crop_width / target_width);
+                    int src_y = start_y + (y * crop_height / target_height);
+                    
+                    // Bounds checking
+                    if (src_x >= frame->width) src_x = frame->width - 1;
+                    if (src_y >= frame->height) src_y = frame->height - 1;
+                    
+                    int src_idx = src_y * frame->width + src_x;
+                    int dst_idx = y * target_width + x;
+                    dst_pixels[dst_idx] = swap_rgb565_bytes(src_pixels[src_idx]);
+                }
+            }
+        }
+        
+        lv_canvas_set_buffer(ui_camera_canvas, camera_canvas_buf, target_width, target_height, LV_IMG_CF_TRUE_COLOR);
 
         if (camera_get_photo_flag)
         {
@@ -698,6 +793,23 @@ static void camera_video_play(lv_timer_t *t)
 
         esp_camera_fb_return(frame);
     }
+}
+
+void ui_event_CameraCanvasTap(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+    
+    // Cycle through zoom levels: 1x (0) -> 2x (1) -> 4x (2) -> 1x (0)
+    int next_zoom = (current_zoom_level + 1) % 3;
+    ui_set_zoom_level(next_zoom);
+    
+    // Show overlay indicator
+    char zoom_text[8];
+    snprintf(zoom_text, sizeof(zoom_text), "%s", next_zoom == 0 ? "1x" : (next_zoom == 1 ? "2x" : "4x"));
+    ui_show_photo_overlay(zoom_text);
 }
 
 static void ui_event_SettingsButton(lv_event_t *e)
@@ -999,6 +1111,7 @@ void ui_HomeScreen_screen_init(void)
             current_dithering = clamp_dither_type(ui_prefs.getInt(UI_PREF_DITHER_KEY, current_dithering));
             current_pixel_size = clamp_pixel_size(ui_prefs.getInt(UI_PREF_PIXEL_SIZE_KEY, current_pixel_size));
             camera_led_open_flag = ui_prefs.getBool(UI_PREF_FLASH_KEY, camera_led_open_flag);
+            current_zoom_level = ui_prefs.getInt(UI_PREF_ZOOM_LEVEL_KEY, 0); // Default to 1x zoom
         }
     }
 
@@ -1021,8 +1134,9 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_x(ui_camera_canvas, 0);
     lv_obj_set_y(ui_camera_canvas, 14);
     lv_obj_set_align(ui_camera_canvas, LV_ALIGN_TOP_LEFT);
-    lv_obj_add_flag(ui_camera_canvas, LV_OBJ_FLAG_ADV_HITTEST);  /// Flags
+    lv_obj_add_flag(ui_camera_canvas, LV_OBJ_FLAG_CLICKABLE);    /// Make it clickable
     lv_obj_clear_flag(ui_camera_canvas, LV_OBJ_FLAG_SCROLLABLE); /// Flags
+    lv_obj_add_event_cb(ui_camera_canvas, ui_event_CameraCanvasTap, LV_EVENT_CLICKED, NULL);
 
     // Overlay label for photo taken feedback
     ui_photo_overlay_label = lv_label_create(ui_camera_canvas);
@@ -1041,6 +1155,25 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_style_pad_all(ui_fps_label, 4, 0);
     lv_obj_set_style_radius(ui_fps_label, 4, 0);
     lv_obj_align(ui_fps_label, LV_ALIGN_BOTTOM_LEFT, 6, -4);
+    
+    // Zoom level indicator
+    ui_zoom_label = lv_label_create(ui_camera_canvas);
+    lv_obj_set_style_bg_color(ui_zoom_label, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(ui_zoom_label, LV_OPA_50, 0);
+    lv_obj_set_style_text_color(ui_zoom_label, lv_color_white(), 0);
+    lv_obj_set_style_text_font(ui_zoom_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_pad_all(ui_zoom_label, 4, 0);
+    lv_obj_set_style_radius(ui_zoom_label, 4, 0);
+    lv_obj_align(ui_zoom_label, LV_ALIGN_BOTTOM_RIGHT, -6, -4);
+    
+    // Set initial zoom indicator text based on saved preference
+    const char* zoom_text = "1x";
+    switch (current_zoom_level) {
+        case 0: zoom_text = "1x"; break;
+        case 1: zoom_text = "2x"; break;
+        case 2: zoom_text = "4x"; break;
+    }
+    lv_label_set_text(ui_zoom_label, zoom_text);
 
     camera_timer = lv_timer_create(camera_video_play, 50, NULL);
     lv_timer_ready(camera_timer);

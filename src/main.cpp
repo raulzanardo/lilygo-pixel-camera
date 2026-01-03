@@ -606,7 +606,7 @@ void camera_init(void)
     config.xclk_freq_hz = XCLK_FREQ_HZ;
 
     config.pixel_format = PIXFORMAT_RGB565;
-    config.frame_size = FRAMESIZE_HQVGA;
+    config.frame_size = FRAMESIZE_HQVGA; // HQVGA (240x176) for best FPS
     config.jpeg_quality = 0;
     config.fb_count = 1;
 
