@@ -460,6 +460,9 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
     case 3:
         applyEdgeDetection(&temp_frame, 1);
         break;
+    case 4:
+        applyCRT(&temp_frame, ui_get_pixel_size());
+        break;
     default:
         break;
     }

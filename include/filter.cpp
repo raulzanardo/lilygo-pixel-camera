@@ -1649,4 +1649,113 @@ void applyAutoAdjust(camera_fb_t *cameraFb)
     }
 }
 
+/**
+ * Apply CRT filter - pixelates and separates RGB channels across blocks
+ * Block 0: red only, Block 1: green only, Block 2: blue only, repeat
+ * @param cameraFb Pointer to camera frame buffer
+ * @param pixelSize Size of blocks (1, 2, 4, or 8)
+ */
+void applyCRT(camera_fb_t *cameraFb, int pixelSize)
+{
+    if (!psramFound() || !cameraFb)
+    {
+        return;
+    }
+
+    int width = cameraFb->width;
+    int height = cameraFb->height;
+    uint16_t *frameBuffer = (uint16_t *)cameraFb->buf;
+    
+    const bool swapBytes = true;
+
+    // Process image in blocks
+    for (int by = 0; by < height; by += pixelSize)
+    {
+        for (int bx = 0; bx < width; bx += pixelSize)
+        {
+            // Determine channel for this block based on scanline rotation
+            // Line 0: R,G,B,R,G,B... (offset 0)
+            // Line 1: B,R,G,B,R,G... (offset 2)
+            // Line 2: G,B,R,G,B,R... (offset 1)
+            int blockX = bx / pixelSize;
+            int blockY = by / pixelSize;
+            int lineOffset = (blockY % 3) * 2;
+            int channel = (blockX + lineOffset) % 3;
+            
+            // First pass: Calculate average color for this block
+            uint32_t sumR = 0, sumG = 0, sumB = 0;
+            int pixelCount = 0;
+            
+            for (int dy = 0; dy < pixelSize && (by + dy) < height; dy++)
+            {
+                for (int dx = 0; dx < pixelSize && (bx + dx) < width; dx++)
+                {
+                    int x = bx + dx;
+                    int y = by + dy;
+                    int i = y * width + x;
+                    
+                    uint16_t pixel = frameBuffer[i];
+                    
+                    if (swapBytes)
+                    {
+                        pixel = ((pixel << 8) | (pixel >> 8));
+                    }
+                    
+                    // Extract RGB565 components and accumulate
+                    sumR += (pixel >> 11) & 0x1F;
+                    sumG += (pixel >> 5) & 0x3F;
+                    sumB += pixel & 0x1F;
+                    pixelCount++;
+                }
+            }
+            
+            // Calculate average RGB values
+            uint8_t avgR5 = sumR / pixelCount;
+            uint8_t avgG6 = sumG / pixelCount;
+            uint8_t avgB5 = sumB / pixelCount;
+            
+            // Apply channel filter based on block
+            if (channel == 0)
+            {
+                // Keep red only
+                avgG6 = 0;
+                avgB5 = 0;
+            }
+            else if (channel == 1)
+            {
+                // Keep green only
+                avgR5 = 0;
+                avgB5 = 0;
+            }
+            else // channel == 2
+            {
+                // Keep blue only
+                avgR5 = 0;
+                avgG6 = 0;
+            }
+            
+            // Reconstruct averaged and filtered RGB565
+            uint16_t blockColor = (avgR5 << 11) | (avgG6 << 5) | avgB5;
+            
+            if (swapBytes)
+            {
+                blockColor = ((blockColor << 8) | (blockColor >> 8));
+            }
+            
+            // Second pass: Fill entire block with averaged filtered color
+            for (int dy = 0; dy < pixelSize && (by + dy) < height; dy++)
+            {
+                for (int dx = 0; dx < pixelSize && (bx + dx) < width; dx++)
+                {
+                    int x = bx + dx;
+                    int y = by + dy;
+                    int i = y * width + x;
+                    
+                    frameBuffer[i] = blockColor;
+                }
+            }
+        }
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////

@@ -246,7 +246,8 @@ typedef enum
     CAMERA_FILTER_NONE = 0,
     CAMERA_FILTER_PIXELATE,
     CAMERA_FILTER_DITHER,
-    CAMERA_FILTER_EDGE
+    CAMERA_FILTER_EDGE,
+    CAMERA_FILTER_CRT
 } camera_filter_t;
 
 static camera_filter_t current_filter = CAMERA_FILTER_NONE;
@@ -460,6 +461,9 @@ static void apply_selected_filter(camera_fb_t *frame)
     case CAMERA_FILTER_EDGE:
         applyEdgeDetection(frame, 1);
         break;
+    case CAMERA_FILTER_CRT:
+        applyCRT(frame, current_pixel_size);
+        break;
     case CAMERA_FILTER_NONE:
     default:
         break;
@@ -468,7 +472,7 @@ static void apply_selected_filter(camera_fb_t *frame)
 
 void ui_set_filter_mode(int mode)
 {
-    if (mode < CAMERA_FILTER_NONE || mode > CAMERA_FILTER_EDGE)
+    if (mode < CAMERA_FILTER_NONE || mode > CAMERA_FILTER_CRT)
     {
         mode = CAMERA_FILTER_NONE;
     }
@@ -1231,7 +1235,7 @@ void ui_HomeScreen_screen_init(void)
 
     lv_dropdown_set_options_static(
         ui_FilterDropdown,
-        "No filter\nPixelate\nDithering\nEdge detect");
+        "No filter\nPixelate\nDithering\nEdge detect\nCRT");
     lv_dropdown_set_selected(ui_FilterDropdown, current_filter);
 
     /* Palette dropdown */
