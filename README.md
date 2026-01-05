@@ -8,8 +8,10 @@ A feature-rich camera application for the LilyGo T-Display S3 Pro with OV3660 ca
 
 **Required:**
 - LilyGo T-Display S3 Pro (ESP32-S3, 222x480 TFT display)
-- OV3660 Camera Module
+- OV3660 Camera Module (not the default camera that comes with the board)
 - MicroSD Card (for photo storage)
+
+**Note:** This project uses the OV3660 camera module, which is different from the standard camera module typically bundled with the T-Display S3 Pro. Make sure you have the compatible OV3660 sensor for proper operation.
 
 **Board Features:**
 - ESP32-S3 dual-core processor (240MHz)
