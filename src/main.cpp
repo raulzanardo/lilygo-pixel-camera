@@ -1,3 +1,5 @@
+#define DISABLE_ALL_LIBRARY_WARNINGS
+
 #include <Arduino.h>
 #include <lvgl.h>
 #include <TFT_eSPI.h>
@@ -18,6 +20,7 @@
 #include <Preferences.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#undef IS_BIT_SET
 #include <XPowersLib.h>
 
 extern "C"
@@ -97,7 +100,6 @@ static void *png_file_open_cb(const char *filename)
         Serial.printf("Failed to open %s for PNG write\n", filename);
         return nullptr;
     }
-    Serial.printf("Opening %s for PNG write\n", filename);
     return &png_file_handle;
 }
 
@@ -160,7 +162,6 @@ static bool ensure_sd_initialized()
 
     sd_initialized = true;
     register_sd_fs_driver();
-    Serial.println("SD card ready");
     return true;
 }
 
@@ -378,40 +379,32 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
     std::vector<uint16_t> working(pixel_count);
     uint16_t *src = reinterpret_cast<uint16_t *>(frame->buf);
 
-    // Apply zoom crop if zoom is active (matching live preview behavior)
     int zoom_level = ui_get_zoom_level();
     if (zoom_level > 0)
     {
-        // Digital zoom - crop center and scale
         int crop_width, crop_height;
         
         if (zoom_level == 1)
         {
-            // 2x zoom - crop half size from center
             crop_width = width / 2;
             crop_height = height / 2;
         }
-        else // zoom_level == 2
+        else
         {
-            // 4x zoom - crop quarter size from center
             crop_width = width / 4;
             crop_height = height / 4;
         }
         
-        // Calculate center crop position
         int start_x = (width - crop_width) / 2;
         int start_y = (height - crop_height) / 2;
         
-        // Scale cropped region to full frame size
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
-                // Map to source crop coordinates
                 int src_x = start_x + (x * crop_width / width);
                 int src_y = start_y + (y * crop_height / height);
                 
-                // Bounds check
                 if (src_x >= width) src_x = width - 1;
                 if (src_y >= height) src_y = height - 1;
                 
@@ -421,14 +414,12 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
     }
     else
     {
-        // No zoom - direct copy
         memcpy(working.data(), src, pixel_count * sizeof(uint16_t));
     }
 
     out_w = width;
     out_h = height;
 
-    // Create temp frame pointing to our zoomed/processed buffer
     camera_fb_t temp_frame = *frame;
     temp_frame.buf = reinterpret_cast<uint8_t *>(working.data());
     temp_frame.width = out_w;
@@ -513,22 +504,6 @@ static bool encode_rgb565_png(const char *path, const uint16_t *pixels, uint16_t
         return false;
     }
 
-    File verify = SD.open(path, FILE_READ);
-    if (verify)
-    {
-        size_t verify_size = verify.size();
-        uint8_t header[16] = {0};
-        verify.read(header, sizeof(header));
-        verify.close();
-        Serial.printf("PNG saved (%u bytes). Header: %02X %02X %02X %02X %02X %02X %02X %02X\n",
-                      static_cast<unsigned int>(verify_size),
-                      header[0], header[1], header[2], header[3], header[4], header[5], header[6], header[7]);
-    }
-    else
-    {
-        Serial.println("Failed to reopen PNG for verification");
-    }
-
     return true;
 }
 
@@ -574,11 +549,8 @@ static void capture_photo_with_flash()
 
     if (flash_active)
     {
-        // Wait for flash to stabilize
         delay(50);
 
-        // Discard a few frames to let the sensor adjust to the flash
-        // This allows auto-exposure and auto-gain to stabilize
         for (int i = 0; i < 3; i++)
         {
             camera_fb_t *temp = esp_camera_fb_get();
@@ -586,16 +558,14 @@ static void capture_photo_with_flash()
             {
                 esp_camera_fb_return(temp);
             }
-            delay(50); // Small delay between frame grabs
+            delay(50);
         }
     }
 
-    // Now capture the actual photo with proper exposure
     camera_fb_t *frame = esp_camera_fb_get();
     if (!frame)
     {
         Serial.println("Failed to capture frame");
-        // Turn off flash before returning
         if (led_flash_active)
         {
             ledcWrite(LEDC_WHITE_CH, 0);
@@ -612,7 +582,6 @@ static void capture_photo_with_flash()
 
     esp_camera_fb_return(frame);
 
-    // Ensure flash is turned off after capture completes
     if (led_flash_active)
     {
         ledcWrite(LEDC_WHITE_CH, 0);
@@ -620,6 +589,7 @@ static void capture_photo_with_flash()
         ensure_flash_power(false);
     }
 }
+
 static void handle_user_buttons()
 {
     for (size_t i = 0; i < BOARD_USER_BTN_NUM; ++i)
@@ -672,14 +642,6 @@ void camera_init(void)
 
     if (s)
     {
-        Serial.print("camera id:");
-        Serial.println(s->id.PID);
-        camera_sensor_info_t *sinfo = esp_camera_sensor_get_info(&(s->id));
-        if (sinfo)
-        {
-            Serial.print("camera model:");
-            Serial.println(sinfo->name);
-        }
         if (s->id.PID == GC0308_PID)
         {
             s->set_vflip(s, 0); // This can't flip the picture vertically. Watch out!
@@ -690,39 +652,32 @@ void camera_init(void)
             s->set_hmirror(s, 0);
             s->set_vflip(s, 1);
 
-            // Apply camera settings from preferences
             bool aec2_enabled = ui_get_aec2_enabled();
             s->set_aec2(s, aec2_enabled ? 1 : 0);
-            Serial.printf("AEC2: %s\n", aec2_enabled ? "enabled" : "disabled");
 
             if (aec2_enabled)
             {
-                s->set_dcw(s, 1); // Downsize cropping
-                s->set_bpc(s, 1); // Bad pixel correction
-                s->set_wpc(s, 1); // White pixel correction
-                Serial.println("DCW/BPC/WPC: enabled");
+                s->set_dcw(s, 1);
+                s->set_bpc(s, 1);
+                s->set_wpc(s, 1);
             }
 
             bool gain_ctrl = ui_get_gain_ctrl_enabled();
             s->set_gain_ctrl(s, gain_ctrl ? 1 : 0);
-            Serial.printf("AGC: %s\n", gain_ctrl ? "enabled" : "disabled");
 
             if (!gain_ctrl)
             {
                 int agc_gain = ui_get_agc_gain();
                 s->set_agc_gain(s, agc_gain);
-                Serial.printf("Manual gain: %d\n", agc_gain);
             }
 
-            bool exp_ctrl = ui_get_exposure_ctrl_enabled();
-            s->set_exposure_ctrl(s, exp_ctrl ? 1 : 0);
-            Serial.printf("AEC: %s\n", exp_ctrl ? "enabled" : "disabled");
+            bool exposure_ctrl = ui_get_exposure_ctrl_enabled();
+            s->set_exposure_ctrl(s, exposure_ctrl ? 1 : 0);
 
-            if (!exp_ctrl)
+            if (!exposure_ctrl)
             {
                 int aec_value = ui_get_aec_value();
                 s->set_aec_value(s, aec_value);
-                Serial.printf("Manual exposure: %d\n", aec_value);
             }
         }
         else
@@ -738,7 +693,6 @@ void camera_init(void)
     ledcSetup(LEDC_WHITE_CH, 1000, 8);
     ledcAttachPin(CAMERA_WHITH_LED, LEDC_WHITE_CH);
     ledcWrite(LEDC_WHITE_CH, 0);
-    // ledcWrite(LEDC_WHITE_CH, 20);
 }
 
 /* Display flushing */
@@ -763,15 +717,6 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
         data->state = LV_INDEV_STATE_PR;
         data->point.x = touch_last_x;
         data->point.y = touch_last_y;
-
-        // Serial.print("Data x ");
-        // Serial.println(touch_last_x);
-
-        // Serial.print("Data y ");
-        // Serial.println(touch_last_y);
-
-        // Update the label with the touch coordinates
-        // update_touch_coordinates(touch_last_x, touch_last_y);
     }
     else
     {
@@ -792,20 +737,17 @@ static bool ensure_pmu_ready()
         return false;
     }
     pmu_ready = true;
-    // Minimal setup: leave charge defaults, disable status LED, light measurement
-    // PMU.disableStatLed();
     PMU.enableStatLed();
     PMU.setChargeTargetVoltage(4352);
     PMU.setPrechargeCurr(64);
     PMU.setChargerConstantCurr(320);
-    PMU.enableADCMeasure();
+    PMU.enableMeasure();
     return true;
 }
 
 void setup()
 {
-    // delay(2000);
-    Serial.begin(115200); /* prepare for possible serial debug */
+    Serial.begin(115200);
 
     pinMode(BOARD_TFT_BL, OUTPUT);
     digitalWrite(BOARD_TFT_BL, LOW); // Backlight OFF
@@ -858,10 +800,6 @@ void setup()
         photo_counter = last_saved + 1;
     }
 
-    // start_camera_stream();
-    // init_camera_module();
-
-    //
     Serial.println("Setup done");
 }
 
@@ -870,5 +808,4 @@ void loop()
     handle_user_buttons();
     update_led_flash();
     lv_task_handler();
-    // delay(2);
 }
