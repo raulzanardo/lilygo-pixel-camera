@@ -34,6 +34,21 @@ A feature-rich camera application for the LilyGo T-Display S3 Pro with OV3660 ca
   <img src="images/photos/photo_299.png" alt="Sample photo 299" width="180" />
 </p>
 
+## User Interface Screenshots
+
+<p align="center">
+  <img src="images/screens/home.bmp" alt="Home Screen" width="180" />
+  <img src="images/screens/home_filters.bmp" alt="Home Screen - Filters" width="180" />
+  <img src="images/screens/home_palettes.bmp" alt="Home Screen - Palettes" width="180" />
+</p>
+
+<p align="center">
+  <img src="images/screens/home_camera_settings.bmp" alt="Home Screen - Camera Settings" width="180" />
+  <img src="images/screens/gallery.bmp" alt="Gallery Screen" width="180" />
+  <img src="images/screens/settings.bmp" alt="Settings Screen" width="180" />
+
+</p>
+
 ## Features
 
 ### Camera Capabilities
