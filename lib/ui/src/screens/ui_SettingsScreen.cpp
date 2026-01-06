@@ -10,6 +10,7 @@ static lv_obj_t *ui_settings_screen = NULL;
 static lv_obj_t *ui_settings_flash_switch = NULL;
 static lv_obj_t *ui_settings_storage_switch = NULL;
 static lv_obj_t *ui_settings_auto_adjust_switch = NULL;
+static lv_obj_t *ui_settings_screenshot_switch = NULL;
 static lv_obj_t *ui_settings_back_btn = NULL;
 
 // Forward declaration
@@ -31,6 +32,23 @@ static void ui_settings_auto_adjust_event(lv_event_t *e)
 
     bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
     ui_set_auto_adjust_enabled(enabled);
+}
+
+static void ui_settings_screenshot_event(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+    {
+        return;
+    }
+
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+    {
+        return;
+    }
+
+    bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+    ui_set_screenshot_mode_enabled(enabled);
 }
 
 static void ui_settings_back_event(lv_event_t *e)
@@ -148,6 +166,29 @@ static void build_settings_screen()
         lv_obj_add_state(ui_settings_auto_adjust_switch, LV_STATE_CHECKED);
     }
     lv_obj_add_event_cb(ui_settings_auto_adjust_switch, ui_settings_auto_adjust_event, LV_EVENT_ALL, NULL);
+
+    // screenshot mode toggle
+    lv_obj_t *screenshot_row = lv_obj_create(ui_settings_screen);
+    lv_obj_set_width(screenshot_row, LV_PCT(100));
+    lv_obj_set_height(screenshot_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(screenshot_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(screenshot_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(screenshot_row, 0, 0);
+    lv_obj_set_style_pad_all(screenshot_row, 0, 0);
+    lv_obj_set_style_pad_row(screenshot_row, 8, 0);
+    lv_obj_set_style_pad_column(screenshot_row, 8, 0);
+    lv_obj_set_flex_flow(screenshot_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(screenshot_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *screenshot_label = lv_label_create(screenshot_row);
+    lv_label_set_text(screenshot_label, "Screenshot mode");
+
+    ui_settings_screenshot_switch = lv_switch_create(screenshot_row);
+    if (ui_get_screenshot_mode_enabled())
+    {
+        lv_obj_add_state(ui_settings_screenshot_switch, LV_STATE_CHECKED);
+    }
+    lv_obj_add_event_cb(ui_settings_screenshot_switch, ui_settings_screenshot_event, LV_EVENT_ALL, NULL);
 
     // Add flexible spacer to push version label to bottom
     lv_obj_t *spacer = lv_obj_create(ui_settings_screen);

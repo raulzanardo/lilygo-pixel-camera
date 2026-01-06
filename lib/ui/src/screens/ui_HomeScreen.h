@@ -40,6 +40,8 @@ bool ui_get_auto_adjust_enabled(void);
 void ui_set_auto_adjust_enabled(bool enabled);
 int ui_get_zoom_level(void);
 void ui_set_zoom_level(int level);
+bool ui_get_screenshot_mode_enabled(void);
+void ui_set_screenshot_mode_enabled(bool enabled);
 
 #ifdef __cplusplus
 } /*extern "C"*/

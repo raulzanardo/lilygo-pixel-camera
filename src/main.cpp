@@ -27,6 +27,7 @@ extern "C"
 {
 #include <extra/libs/png/lv_png.h>
 #include <extra/libs/png/lodepng.h>
+#include <extra/others/snapshot/lv_snapshot.h>
 }
 #include "filter.h"
 #include "palettes.h"
@@ -543,6 +544,145 @@ static bool save_frame_as_png(camera_fb_t *frame)
     return ok;
 }
 
+static bool save_screenshot_as_bmp(const char *filename, lv_img_dsc_t *img_dsc, void *buf)
+{
+    if (!ensure_sd_initialized())
+    {
+        Serial.println("SD card not ready");
+        return false;
+    }
+
+    File file = SD.open(filename, FILE_WRITE);
+    if (!file)
+    {
+        Serial.printf("Failed to open file for writing: %s\n", filename);
+        return false;
+    }
+
+    uint32_t width = img_dsc->header.w;
+    uint32_t height = img_dsc->header.h;
+    uint32_t row_size = ((width * 3 + 3) / 4) * 4;
+    uint32_t image_size = row_size * height;
+    uint32_t file_size = 54 + image_size;
+
+    uint8_t bmp_header[54] = {
+        'B', 'M',
+        (uint8_t)(file_size), (uint8_t)(file_size >> 8), (uint8_t)(file_size >> 16), (uint8_t)(file_size >> 24),
+        0, 0, 0, 0,
+        54, 0, 0, 0,
+        40, 0, 0, 0,
+        (uint8_t)(width), (uint8_t)(width >> 8), (uint8_t)(width >> 16), (uint8_t)(width >> 24),
+        (uint8_t)(-height), (uint8_t)((-height) >> 8), (uint8_t)((-height) >> 16), (uint8_t)((-height) >> 24),
+        1, 0,
+        24, 0,
+        0, 0, 0, 0,
+        (uint8_t)(image_size), (uint8_t)(image_size >> 8), (uint8_t)(image_size >> 16), (uint8_t)(image_size >> 24),
+        0x13, 0x0B, 0, 0,
+        0x13, 0x0B, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0
+    };
+
+    file.write(bmp_header, 54);
+
+    uint16_t *pixel_data = (uint16_t *)buf;
+    uint8_t *row = (uint8_t *)malloc(row_size);
+    if (!row)
+    {
+        file.close();
+        Serial.println("Failed to allocate row buffer");
+        return false;
+    }
+
+    for (uint32_t y = 0; y < height; y++)
+    {
+        memset(row, 0, row_size);
+        for (uint32_t x = 0; x < width; x++)
+        {
+            uint16_t rgb565 = pixel_data[y * width + x];
+            uint8_t r = ((rgb565 >> 11) & 0x1F) << 3;
+            uint8_t g = ((rgb565 >> 5) & 0x3F) << 2;
+            uint8_t b = (rgb565 & 0x1F) << 3;
+            row[x * 3 + 0] = b;
+            row[x * 3 + 1] = g;
+            row[x * 3 + 2] = r;
+        }
+        file.write(row, row_size);
+    }
+
+    free(row);
+    file.close();
+    Serial.printf("Screenshot saved: %s\n", filename);
+    return true;
+}
+
+static void capture_screenshot()
+{
+    if (!ensure_sd_initialized())
+    {
+        Serial.println("SD card not available for screenshot");
+        ui_show_photo_overlay("SD card error");
+        return;
+    }
+
+    lv_obj_t *scr = lv_scr_act();
+    if (!scr)
+    {
+        Serial.println("Failed to get active screen");
+        return;
+    }
+
+    uint32_t buf_size = lv_snapshot_buf_size_needed(scr, LV_IMG_CF_TRUE_COLOR);
+    Serial.printf("Screenshot buffer size needed: %lu bytes\n", buf_size);
+
+    void *screenshot_buf = heap_caps_malloc(buf_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!screenshot_buf)
+    {
+        screenshot_buf = heap_caps_malloc(buf_size, MALLOC_CAP_DEFAULT | MALLOC_CAP_8BIT);
+    }
+
+    if (!screenshot_buf)
+    {
+        Serial.println("Failed to allocate screenshot buffer");
+        ui_show_photo_overlay("Memory error");
+        return;
+    }
+
+    lv_img_dsc_t img_dsc;
+    lv_res_t res = lv_snapshot_take_to_buf(scr, LV_IMG_CF_TRUE_COLOR, &img_dsc, screenshot_buf, buf_size);
+
+    if (res != LV_RES_OK)
+    {
+        Serial.println("Screenshot capture failed");
+        heap_caps_free(screenshot_buf);
+        ui_show_photo_overlay("Capture failed");
+        return;
+    }
+
+    if (photo_prefs.begin(PHOTO_PREF_NAMESPACE, false))
+    {
+        uint32_t last_saved = photo_prefs.getUInt(PHOTO_PREF_KEY, 0);
+        photo_counter = last_saved + 1;
+    }
+
+    char filename[64];
+    snprintf(filename, sizeof(filename), "/screenshot_%lu.bmp", photo_counter);
+
+    bool saved = save_screenshot_as_bmp(filename, &img_dsc, screenshot_buf);
+    heap_caps_free(screenshot_buf);
+
+    if (saved)
+    {
+        photo_prefs.putUInt(PHOTO_PREF_KEY, photo_counter);
+        photo_counter++;
+        ui_show_photo_overlay("Screenshot saved");
+    }
+    else
+    {
+        ui_show_photo_overlay("Save failed");
+    }
+}
+
 static void capture_photo_with_flash()
 {
     bool flash_active = trigger_led_flash();
@@ -597,7 +737,14 @@ static void handle_user_buttons()
         bool pressed = digitalRead(user_button_pins[i]) == LOW;
         if (pressed && !user_button_last_pressed[i])
         {
-            capture_photo_with_flash();
+            if (i == 1 && ui_get_screenshot_mode_enabled())
+            {
+                capture_screenshot();
+            }
+            else
+            {
+                capture_photo_with_flash();
+            }
         }
         user_button_last_pressed[i] = pressed;
     }

@@ -97,6 +97,7 @@ static const char *UI_PREF_DITHER_KEY = "dither_type";
 static const char *UI_PREF_PIXEL_SIZE_KEY = "pixel_size";
 static const char *UI_PREF_AUTO_ADJUST_KEY = "auto_adjust";
 static const char *UI_PREF_ZOOM_LEVEL_KEY = "zoom_level";
+static const char *UI_PREF_SCREENSHOT_KEY = "screenshot_mode";
 
 static uint8_t *camera_canvas_buf = NULL;
 static size_t camera_canvas_buf_size = 0;
@@ -666,6 +667,26 @@ void ui_set_zoom_level(int level)
     if (ui_prefs_ready)
     {
         ui_prefs.putInt(UI_PREF_ZOOM_LEVEL_KEY, current_zoom_level);
+    }
+}
+
+bool ui_get_screenshot_mode_enabled(void)
+{
+    Preferences prefs;
+    if (prefs.begin(UI_PREF_NAMESPACE, true))
+    {
+        bool enabled = prefs.getBool(UI_PREF_SCREENSHOT_KEY, false);
+        prefs.end();
+        return enabled;
+    }
+    return false;
+}
+
+void ui_set_screenshot_mode_enabled(bool enabled)
+{
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putBool(UI_PREF_SCREENSHOT_KEY, enabled);
     }
 }
 
