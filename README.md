@@ -190,8 +190,3 @@ This project uses open-source libraries:
 - TouchLib v0.0.2 (MIT License)
 
 Hardware designed by LilyGo.
-
-## Credits
-
-Developed for the LilyGo T-Display S3 Pro ecosystem.
-Built with PlatformIO and the Arduino framework for ESP32.
