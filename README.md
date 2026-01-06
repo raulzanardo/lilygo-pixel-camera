@@ -173,7 +173,7 @@ Future improvements and features to implement:
 - **Dynamic Camera Settings**: Runtime adjustment of sensor parameters (saturation, white balance, special effects, image quality)
 - **Advanced Gallery Features**: Photo editing, sharing capabilities, slideshow mode
 - **Performance Optimization**: Increase frame rate for filters, optimize memory usage further
-- **Additional Filters**: Blur, sharpen, vignette, color grading, vintage effects
+- **Additional Filters**: Blur, sharpen, vignette, color grading, vintage effects, double exposure
 - **Timelapse Mode**: Interval shooting with automatic compilation
 - **WiFi Features**: Remote camera control, live streaming, cloud backup
 - **Battery Optimization**: Low-power modes, sleep scheduling
