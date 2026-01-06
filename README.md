@@ -194,6 +194,15 @@ Future improvements and features to implement:
 - **Battery Optimization**: Low-power modes, sleep scheduling
 - **Storage features**: format, batch delete
 
+## References
+
+This project was built using the following resources:
+
+- **LilyGo T-Display S3 Pro**: [Official Hardware Repository](https://github.com/Xinyuan-LilyGO/T-Display-S3-Pro)
+- **T-Display S3 Pro Examples**: [nishad2m8's Project Examples](https://github.com/nishad2m8/T-Display-S3-Pro-YT)
+- **LVGL Screenshot Library**: [lv_lib_100ask Screenshot Documentation](https://github.com/100askTeam/lv_lib_100ask/tree/master/src/lv_100ask_screenshot)
+- **LVGL Snapshot Guide**: [LVGL Forum - How to Take a Snapshot](https://forum.lvgl.io/t/how-to-take-a-snapshot/9092)
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
