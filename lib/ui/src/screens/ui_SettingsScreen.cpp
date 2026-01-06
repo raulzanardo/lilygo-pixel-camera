@@ -2,6 +2,9 @@
 #include "ui_HomeScreen.h"
 #include "../ui.h"
 #include "lvgl.h"
+#include "../../../../src/utilities.h"
+#include <cstdio>
+#include <cstring>
 
 static lv_obj_t *ui_settings_screen = NULL;
 static lv_obj_t *ui_settings_flash_switch = NULL;
@@ -145,6 +148,49 @@ static void build_settings_screen()
         lv_obj_add_state(ui_settings_auto_adjust_switch, LV_STATE_CHECKED);
     }
     lv_obj_add_event_cb(ui_settings_auto_adjust_switch, ui_settings_auto_adjust_event, LV_EVENT_ALL, NULL);
+
+    // Add flexible spacer to push version label to bottom
+    lv_obj_t *spacer = lv_obj_create(ui_settings_screen);
+    lv_obj_set_size(spacer, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(spacer, 1);
+    lv_obj_set_style_bg_opa(spacer, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(spacer, 0, 0);
+    lv_obj_clear_flag(spacer, LV_OBJ_FLAG_SCROLLABLE);
+}
+
+static void show_version_label()
+{
+    if (!ui_settings_screen) {
+        return;
+    }
+    
+    // Create version label in the flex container (after spacer)
+    static lv_obj_t *version_label = NULL;
+    if (!version_label) {
+        version_label = lv_label_create(ui_settings_screen);
+        
+        // Convert __DATE__ (format "Mmm dd yyyy") to YYYYMMDD
+        const char* months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+        char compile_date[9];
+        int month = 0;
+        char mon_str[4];
+        int day, year;
+        sscanf(__DATE__, "%s %d %d", mon_str, &day, &year);
+        for (int i = 0; i < 12; i++) {
+            if (strcmp(mon_str, months[i]) == 0) {
+                month = i + 1;
+                break;
+            }
+        }
+        snprintf(compile_date, sizeof(compile_date), "%04d%02d%02d", year, month, day);
+        
+        lv_label_set_text_fmt(version_label, "Version: %s (%s)", FIRMWARE_VERSION, compile_date);
+        lv_obj_set_style_text_color(version_label, lv_palette_main(LV_PALETTE_GREY), 0);
+        lv_obj_set_style_text_font(version_label, &lv_font_montserrat_12, 0);
+        lv_obj_set_width(version_label, LV_PCT(100));
+        lv_obj_set_style_text_align(version_label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_pad_bottom(version_label, 8, 0);
+    }
 }
 
 lv_obj_t *ui_get_settings_screen(void)
@@ -155,6 +201,7 @@ lv_obj_t *ui_get_settings_screen(void)
 void ui_settings_show(void)
 {
     build_settings_screen();
+    show_version_label();
     ui_pause_camera_timer();
     lv_scr_load_anim(ui_settings_screen, LV_SCR_LOAD_ANIM_MOVE_LEFT, 200, 0, false);
 }

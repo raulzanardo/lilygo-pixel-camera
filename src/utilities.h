@@ -7,6 +7,9 @@
  *
  */
 #pragma once
+
+#define FIRMWARE_VERSION "v1.0.0"
+
 // https://www.lilygo.cc/products/t-display-s3-pro
 // T-Dispaly-Pro pinmap
 

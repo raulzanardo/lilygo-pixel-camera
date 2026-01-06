@@ -142,7 +142,6 @@ Edit `platformio.ini` to adjust:
 **Edge Detection**
 - Sobel operator (3x3 convolution kernels)
 - Separate horizontal and vertical gradient computation
-- Configurable threshold for edge sensitivity
 
 **CRT Filter**
 - Block-based RGB channel separation
@@ -164,6 +163,7 @@ Edit `platformio.ini` to adjust:
 ## Known Limitations
 
 - Some filters may reduce frame rate on complex scenes
+- The builtin camera settings need restart to take effect (not available on the stock GC0308 sensor)
 
 ## TODO
 
