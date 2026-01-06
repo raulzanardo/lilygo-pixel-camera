@@ -447,7 +447,7 @@ static void apply_selected_filter(camera_fb_t *frame)
     switch (current_filter)
     {
     case CAMERA_FILTER_PIXELATE:
-        applyPixelate(frame, 8, false);
+        applyPixelate(frame, current_pixel_size, false);
         break;
     case CAMERA_FILTER_DITHER:
     {

@@ -1,17 +1,19 @@
-# Cam Lily
+# Pixel Camera with LilyGo T-Display S3 Pro
 
 A feature-rich camera application for the LilyGo T-Display S3 Pro with OV3660 camera module, featuring real-time filters, software digital zoom, and advanced image processing capabilities.
 
 **Inspired by:** Carlo Andreini's [Pixless Camera](https://www.kickstarter.com/projects/carloandreini/pixless-camera) - a 0.03MP camera that captures charming pixel-art style photos, reminiscent of the iconic Game Boy Camera.
 
+
 ## Hardware
+
+<img src="images/LilyGo%20T-Display%20S3%20Pro.png" alt="LilyGo T-Display S3 Pro" width="360" />
 
 **Required:**
 - LilyGo T-Display S3 Pro (ESP32-S3, 222x480 TFT display)
-- OV3660 Camera Module (not the default camera that comes with the board)
 - MicroSD Card (for photo storage)
 
-**Note:** This project uses the OV3660 camera module, which is different from the standard camera module typically bundled with the T-Display S3 Pro. Make sure you have the compatible OV3660 sensor for proper operation.
+**Note:** This project uses the OV3660 camera module, which is different from the standard camera module typically bundled with the T-Display S3 Pro. Make sure you have the compatible OV3660 sensor for proper operation. I had to remove the transparent plastic cover due to the fact the OV3660 sensor is taller then the GC0308 sensor that comes with the device. The built-in camera settings and controls described here are not available on the stock GC0308 sensor.
 
 **Board Features:**
 - ESP32-S3 dual-core processor (240MHz)
@@ -20,6 +22,17 @@ A feature-rich camera application for the LilyGo T-Display S3 Pro with OV3660 ca
 - Capacitive touch screen
 - Battery management (SY6970)
 - USB Type-C
+- Flash LED
+
+## Sample Photos
+
+<p align="center">
+  <img src="images/photos/photo_177.png" alt="Sample photo 177" width="180" />
+  <img src="images/photos/photo_195.png" alt="Sample photo 195" width="180" />
+  <img src="images/photos/photo_218.png" alt="Sample photo 218" width="180" />
+  <img src="images/photos/photo_293.png" alt="Sample photo 293" width="180" />
+  <img src="images/photos/photo_299.png" alt="Sample photo 299" width="180" />
+</p>
 
 ## Features
 
@@ -28,6 +41,7 @@ A feature-rich camera application for the LilyGo T-Display S3 Pro with OV3660 ca
 - **Software Digital Zoom**: 1x, 2x, and 4x zoom levels with center cropping
 - **Photo Capture**: High-quality PNG image output with configurable processing
 - **Auto-Adjust**: Automatic contrast, brightness, and gamma correction
+- **Camera Controls**: AEC/AEC2, AGC, manual exposure and gain adjustment via UI sliders (not available on the stock GC0308 sensor)
 
 ### Real-Time Filters
 - **Pixelate**: Block-based pixelation effect with adjustable block size
@@ -40,12 +54,6 @@ A feature-rich camera application for the LilyGo T-Display S3 Pro with OV3660 ca
 - Sunset, Cyberpunk, Autumn, Ocean, Desert, Sakura
 - Gameboy, Grayscale, Sepia, Fire, Arctic, Neon
 - 4-color, 16-color, and custom palettes
-
-### Camera Controls
-- Exposure control (AEC/AEC2)
-- Gain control (AGC with manual override)
-- Manual exposure value adjustment
-- Manual gain adjustment via UI sliders
 
 ### Storage & Gallery
 - PNG image encoding with optimal PSRAM/DRAM allocation
@@ -79,41 +87,11 @@ Camera Frame → Auto-Adjust → Filter → Zoom/Crop → Display
                             Optional: PNG Encode → SD Card
 ```
 
-### Project Structure
-```
-cam_lily/
-├── src/
-│   ├── main.cpp           # Application entry, setup, loop
-│   ├── touch.cpp/h        # Touch screen handling
-│   └── utilities.h        # Pin definitions, board config
-├── lib/
-│   └── ui/                # LVGL UI screens and components
-│       ├── ui_HomeScreen  # Main camera screen
-│       ├── ui_GalleryScreen
-│       └── ui_SettingsScreen
-├── include/
-│   ├── filter.cpp/h       # Image processing filters
-│   └── palettes.h         # Color palette definitions
-└── platformio.ini         # Build configuration
-```
-
 ## Building
 
 ### Prerequisites
 - PlatformIO Core or PlatformIO IDE
 - ESP32 toolchain (automatically installed by PlatformIO)
-
-### Build Commands
-```bash
-# Build firmware
-platformio run
-
-# Build and upload
-platformio run --target upload
-
-# Monitor serial output
-platformio device monitor
-```
 
 ### Configuration
 Edit `platformio.ini` to adjust:
@@ -124,28 +102,28 @@ Edit `platformio.ini` to adjust:
 
 ## Usage
 
-### Basic Operation
-1. **Power On**: Camera preview starts automatically
-2. **Tap Screen**: Cycle through zoom levels (1x → 2x → 4x)
-3. **Flash Button**: Toggle camera LED
-4. **Filter Dropdown**: Select real-time filter effect
-5. **Palette Dropdown**: Choose color palette (for dithering filter)
-6. **Camera Button**: Capture and save photo to SD card
-
-### Settings Screen
+### Home Screen 🏠
+- **Status Bar**: Battery level and storage space
+- **Camera Preview**: Tap to cycle through zoom levels (1x → 2x → 4x)
+- **Filter Dropdown**: Select real-time filter effect
+- **Palette Dropdown**: Choose color palette (for dithering filter)
 - **Dithering Type**: Off, Floyd-Steinberg, or Bayer
 - **Pixel Size**: 1x1, 2x2, 4x4, or 8x8 blocks
-- **Exposure Control**: Manual AEC value slider
-- **Gain Control**: Manual AGC gain slider
+- **Camera Button** (physical): Capture and save photo to SD card
+
+**Camera Settings Mode 👁️** :
+- **Exposure**: Manual AEC value slider
+- **Gain**: Manual AGC gain slider
 - **Auto-Adjust**: Toggle automatic image enhancement
 
-### Gallery Screen
+### Settings Screen ⚙️
+- **Flash**: Toggle camera LED
+- **Storage Mode**: Toggle storage switch to enable USB MSC mode for direct SD card access from computer.
+- **Auto-Adjust**: Toggle automatic image enhancement
+
+### Gallery Screen 🖼️
 - Browse captured photos
 - Delete unwanted images
-- View metadata and file information
-
-### USB Mass Storage
-Toggle storage switch to enable USB MSC mode for direct SD card access from computer.
 
 ## Technical Details
 
@@ -172,10 +150,10 @@ Toggle storage switch to enable USB MSC mode for direct SD card access from comp
 - Combined pixelation and color separation effect
 
 ### Camera Configuration
+- Sensor: OV3660
 - Pixel Format: RGB565
 - Frame Size: HQVGA (240x176)
 - Frame Buffer: Double-buffered in PSRAM
-- Sensor: OV3660 with SCCB interface
 
 ### Performance Optimizations
 - Hardware SPI for display communication
@@ -183,29 +161,22 @@ Toggle storage switch to enable USB MSC mode for direct SD card access from comp
 - Filter algorithms optimized for RGB565
 - Strategic frame buffer allocation in PSRAM
 
-## Pin Configuration
-
-See `src/utilities.h` for complete pin mapping.
-
-**Key Pins:**
-- I2C (Camera/Touch/PMU): SDA=5, SCL=6
-- SPI (Display/SD): MISO=8, MOSI=17, SCK=18
-- Camera Data: Y2-Y9 on pins 45,41,40,42,1,3,10,4
-- Camera Control: XCLK=11, PCLK=2, VSYNC=7, HREF=15
-- LED Flash: GPIO 38
-
-## Memory Usage
-
-**Typical Build:**
-- Flash: ~810KB / 6.5MB (12.4%)
-- RAM: ~172KB / 320KB (52.6%)
-- PSRAM: Used for framebuffers and image processing
-
 ## Known Limitations
 
-- Maximum photo resolution limited by PSRAM availability
-- USB Mass Storage requires camera stream pause
 - Some filters may reduce frame rate on complex scenes
+
+## TODO
+
+Future improvements and features to implement:
+
+- **Better Zoom**: Implement smoother zoom transitions, more granular zoom levels (1.5x, 3x, etc.), or pinch-to-zoom gesture support
+- **Dynamic Camera Settings**: Runtime adjustment of sensor parameters (saturation, white balance, special effects, image quality)
+- **Advanced Gallery Features**: Photo editing, sharing capabilities, slideshow mode
+- **Performance Optimization**: Increase frame rate for filters, optimize memory usage further
+- **Additional Filters**: Blur, sharpen, vignette, color grading, vintage effects
+- **Timelapse Mode**: Interval shooting with automatic compilation
+- **WiFi Features**: Remote camera control, live streaming, cloud backup
+- **Battery Optimization**: Low-power modes, sleep scheduling
 
 ## License
 
