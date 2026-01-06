@@ -192,6 +192,7 @@ Future improvements and features to implement:
 - **Timelapse Mode**: Interval shooting with automatic compilation
 - **WiFi Features**: Remote camera control, live streaming, cloud backup
 - **Battery Optimization**: Low-power modes, sleep scheduling
+- **Storage features**: format, batch delete
 
 ## License
 

@@ -654,14 +654,16 @@ void ui_set_zoom_level(int level)
     
     if (ui_zoom_label)
     {
-        const char* zoom_text = "";
-        switch (level)
+        if (level == 0)
         {
-            case 0: zoom_text = "1x"; break;
-            case 1: zoom_text = "2x"; break;
-            case 2: zoom_text = "4x"; break;
+            lv_obj_add_flag(ui_zoom_label, LV_OBJ_FLAG_HIDDEN);
         }
-        lv_label_set_text(ui_zoom_label, zoom_text);
+        else
+        {
+            lv_obj_clear_flag(ui_zoom_label, LV_OBJ_FLAG_HIDDEN);
+            const char* zoom_text = (level == 1) ? "2x" : "4x";
+            lv_label_set_text(ui_zoom_label, zoom_text);
+        }
     }
     
     if (ui_prefs_ready)
@@ -786,9 +788,12 @@ void ui_event_CameraCanvasTap(lv_event_t *e)
     int next_zoom = (current_zoom_level + 1) % 3;
     ui_set_zoom_level(next_zoom);
     
-    char zoom_text[8];
-    snprintf(zoom_text, sizeof(zoom_text), "%s", next_zoom == 0 ? "1x" : (next_zoom == 1 ? "2x" : "4x"));
-    ui_show_photo_overlay(zoom_text);
+    if (next_zoom > 0)
+    {
+        char zoom_text[8];
+        snprintf(zoom_text, sizeof(zoom_text), "%s", next_zoom == 1 ? "2x" : "4x");
+        ui_show_photo_overlay(zoom_text);
+    }
 }
 
 static void ui_event_SettingsButton(lv_event_t *e)
@@ -1146,13 +1151,15 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_align(ui_zoom_label, LV_ALIGN_BOTTOM_RIGHT, -6, -4);
     
     // Set initial zoom indicator text based on saved preference
-    const char* zoom_text = "1x";
-    switch (current_zoom_level) {
-        case 0: zoom_text = "1x"; break;
-        case 1: zoom_text = "2x"; break;
-        case 2: zoom_text = "4x"; break;
+    if (current_zoom_level == 0)
+    {
+        lv_obj_add_flag(ui_zoom_label, LV_OBJ_FLAG_HIDDEN);
     }
-    lv_label_set_text(ui_zoom_label, zoom_text);
+    else
+    {
+        const char* zoom_text = (current_zoom_level == 1) ? "2x" : "4x";
+        lv_label_set_text(ui_zoom_label, zoom_text);
+    }
 
     camera_timer = lv_timer_create(camera_video_play, 50, NULL);
     lv_timer_ready(camera_timer);
