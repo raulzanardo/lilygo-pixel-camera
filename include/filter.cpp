@@ -1742,7 +1742,36 @@ void applyCRT(camera_fb_t *cameraFb, int pixelSize)
                 blockColor = ((blockColor << 8) | (blockColor >> 8));
             }
             
-            // Second pass: Fill entire block with averaged filtered color
+            // Determine if this block row should be darkened (odd block rows)
+            int blockRowIndex = by / pixelSize;
+            bool darkenBlock = (blockRowIndex % 2 == 1);
+            
+            // Apply darkening to the block color if it's on an odd block row
+            uint16_t finalBlockColor = blockColor;
+            if (darkenBlock)
+            {
+                // Extract RGB components
+                uint16_t tempPixel = blockColor;
+                if (swapBytes)
+                {
+                    tempPixel = ((tempPixel << 8) | (tempPixel >> 8));
+                }
+                
+                // Reduce brightness to 25% for scanlines
+                uint8_t r5 = ((tempPixel >> 11) & 0x1F) * 0.25;
+                uint8_t g6 = ((tempPixel >> 5) & 0x3F) * 0.25;
+                uint8_t b5 = (tempPixel & 0x1F) * 0.25;
+                
+                // Reconstruct pixel
+                finalBlockColor = (r5 << 11) | (g6 << 5) | b5;
+                
+                if (swapBytes)
+                {
+                    finalBlockColor = ((finalBlockColor << 8) | (finalBlockColor >> 8));
+                }
+            }
+            
+            // Second pass: Fill entire block with the (possibly darkened) filtered color
             for (int dy = 0; dy < pixelSize && (by + dy) < height; dy++)
             {
                 for (int dx = 0; dx < pixelSize && (bx + dx) < width; dx++)
@@ -1751,7 +1780,7 @@ void applyCRT(camera_fb_t *cameraFb, int pixelSize)
                     int y = by + dy;
                     int i = y * width + x;
                     
-                    frameBuffer[i] = blockColor;
+                    frameBuffer[i] = finalBlockColor;
                 }
             }
         }
