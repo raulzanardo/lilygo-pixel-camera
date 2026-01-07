@@ -5,6 +5,7 @@ A feature-rich camera application for the LilyGo T-Display S3 Pro with OV3660 ca
 **Inspired by:** Carlo Andreini's [Pixless Camera](https://www.kickstarter.com/projects/carloandreini/pixless-camera) - a 0.03MP camera that captures charming pixel-art style photos, reminiscent of the iconic Game Boy Camera.
 
 
+
 ## Hardware
 
 <img src="images/LilyGo%20T-Display%20S3%20Pro.png" alt="LilyGo T-Display S3 Pro" width="360" />
