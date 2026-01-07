@@ -12,9 +12,9 @@
 #include "ui.h"
 #include "ui_SettingsScreen.h"
 #include "ui_GalleryScreen.h"
-#include "../../../src/utilities.h"
-#include "../../../../include/filter.h"
-#include "../../../../include/palettes.h"
+#include "../../../include/utilities.h"
+#include "filter.h"
+#include "../../../include/palettes.h" 
 
 #define EYE_COLOR_INACTIVE lv_color_white()
 #define EYE_COLOR_ACTIVE lv_palette_main(LV_PALETTE_GREEN)

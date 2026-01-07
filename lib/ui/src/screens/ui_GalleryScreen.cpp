@@ -8,7 +8,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
-#include "../../../../src/utilities.h"
+#include "../../../include/utilities.h"
 
 extern "C" {
 #include <extra/libs/png/lodepng.h>

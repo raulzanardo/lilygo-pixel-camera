@@ -2,7 +2,7 @@
 #include "ui_HomeScreen.h"
 #include "../ui.h"
 #include "lvgl.h"
-#include "../../../../src/utilities.h"
+#include "../../../include/utilities.h"
 #include <cstdio>
 #include <cstring>
 
