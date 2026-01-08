@@ -74,8 +74,10 @@ A feature-rich camera application for the LilyGo T-Display S3 Pro with OV3660 ca
 
 ### Storage & Gallery
 - PNG image encoding with optimal PSRAM/DRAM allocation
+- Photos saved at 2x resolution (each pixel upscaled to 2x2) for better quality
 - SD card photo storage with auto-increment naming
 - Built-in gallery with touch navigation
+- Quick access to last photo via long press on gallery button
 - USB Mass Storage mode for direct file access
 
 ## Software Architecture
@@ -139,8 +141,11 @@ Edit `platformio.ini` to adjust:
 - **Auto-Adjust**: Toggle automatic image enhancement
 
 ### Gallery Screen 🖼️
-- Browse captured photos
+- Browse captured photos with paginated view
+- **Gallery Button (tap)**: Open full gallery list
+- **Gallery Button (long press)**: Quick preview of last photo taken
 - Delete unwanted images
+- Touch navigation between photos
 
 ## Technical Details
 
