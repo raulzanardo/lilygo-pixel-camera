@@ -28,26 +28,26 @@ A feature-rich camera application for the LilyGo T-Display S3 Pro with OV3660 ca
 ## Sample Photos
 
 <p align="center">
-  <img src="images/photos/photo_177.png" alt="Sample photo 177" width="180" />
-  <img src="images/photos/photo_195.png" alt="Sample photo 195" width="180" />
-  <img src="images/photos/photo_202.png" alt="Sample photo 200" width="180" />
-  <img src="images/photos/photo_218.png" alt="Sample photo 218" width="180" />
-  <img src="images/photos/photo_293.png" alt="Sample photo 293" width="180" />
-  <img src="images/photos/photo_299.png" alt="Sample photo 299" width="180" />
+  <img src="images/photos/photo_177.png" alt="Sample photo 177" width="220" />
+  <img src="images/photos/photo_195.png" alt="Sample photo 195" width="220" />
+  <img src="images/photos/photo_202.png" alt="Sample photo 200" width="220" />
+  <img src="images/photos/photo_218.png" alt="Sample photo 218" width="220" />
+  <img src="images/photos/photo_293.png" alt="Sample photo 293" width="220" />
+  <img src="images/photos/photo_299.png" alt="Sample photo 299" width="220" />
 </p>
 
 ## User Interface Screenshots
 
 <p align="center">
-  <img src="images/screens/home.bmp" alt="Home Screen" width="180" />
-  <img src="images/screens/home_filters.bmp" alt="Home Screen - Filters" width="180" />
-  <img src="images/screens/home_palettes.bmp" alt="Home Screen - Palettes" width="180" />
+  <img src="images/screens/home.bmp" alt="Home Screen" width="220" />
+  <img src="images/screens/home_filters.bmp" alt="Home Screen - Filters" width="220" />
+  <img src="images/screens/home_palettes.bmp" alt="Home Screen - Palettes" width="220" />
 </p>
 
 <p align="center">
-  <img src="images/screens/home_camera_settings.bmp" alt="Home Screen - Camera Settings" width="180" />
-  <img src="images/screens/gallery.bmp" alt="Gallery Screen" width="180" />
-  <img src="images/screens/settings.bmp" alt="Settings Screen" width="180" />
+  <img src="images/screens/home_camera_settings.bmp" alt="Home Screen - Camera Settings" width="220" />
+  <img src="images/screens/gallery.bmp" alt="Gallery Screen" width="220" />
+  <img src="images/screens/settings.bmp" alt="Settings Screen" width="220" />
 
 </p>
 
