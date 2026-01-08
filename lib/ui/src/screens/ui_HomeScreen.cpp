@@ -14,7 +14,7 @@
 #include "ui_GalleryScreen.h"
 #include "../../../include/utilities.h"
 #include "filter.h"
-#include "../../../include/palettes.h" 
+#include "../../../include/palettes.h"
 
 #define EYE_COLOR_INACTIVE lv_color_white()
 #define EYE_COLOR_ACTIVE lv_palette_main(LV_PALETTE_GREEN)
@@ -264,7 +264,6 @@ static void status_timer_cb(lv_timer_t *timer)
     }
 }
 
-
 static void photo_overlay_timer_cb(lv_timer_t *timer)
 {
     LV_UNUSED(timer);
@@ -299,7 +298,6 @@ void ui_show_photo_overlay(const char *text)
     photo_overlay_timer = lv_timer_create(photo_overlay_timer_cb, 1200, NULL);
 }
 
-
 void camera_set_safe(void (*fn)(sensor_t *s))
 {
     // Pause streaming to avoid SCCB bus contention
@@ -328,7 +326,6 @@ void camera_set_safe(void (*fn)(sensor_t *s))
 
     ui_resume_camera_timer();
 }
-
 
 static inline int clamp_palette_index(int idx)
 {
@@ -385,7 +382,6 @@ static const uint32_t *get_current_palette(int &out_size)
     out_size = kPaletteOptions[current_palette_index].size;
     return kPaletteOptions[current_palette_index].palette;
 }
-
 
 static inline uint16_t swap_rgb565_bytes(uint16_t px)
 {
@@ -541,7 +537,6 @@ bool ui_is_flash_enabled(void)
     return camera_led_open_flag;
 }
 
-
 void ui_pause_camera_timer(void)
 {
     if (camera_timer)
@@ -649,9 +644,9 @@ void ui_set_zoom_level(int level)
     {
         level = 0;
     }
-    
+
     current_zoom_level = level;
-    
+
     if (ui_zoom_label)
     {
         if (level == 0)
@@ -661,11 +656,11 @@ void ui_set_zoom_level(int level)
         else
         {
             lv_obj_clear_flag(ui_zoom_label, LV_OBJ_FLAG_HIDDEN);
-            const char* zoom_text = (level == 1) ? "2x" : "4x";
+            const char *zoom_text = (level == 1) ? "2x" : "4x";
             lv_label_set_text(ui_zoom_label, zoom_text);
         }
     }
-    
+
     if (ui_prefs_ready)
     {
         ui_prefs.putInt(UI_PREF_ZOOM_LEVEL_KEY, current_zoom_level);
@@ -711,10 +706,10 @@ static void camera_video_play(lv_timer_t *t)
 
         uint16_t *dst_pixels = (uint16_t *)camera_canvas_buf;
         const uint16_t *src_pixels = (const uint16_t *)frame->buf;
-        
+
         int target_width = 240;
         int target_height = 176;
-        
+
         if (current_zoom_level == 0)
         {
             size_t pixel_count = frame->len / 2;
@@ -723,7 +718,7 @@ static void camera_video_play(lv_timer_t *t)
         else
         {
             int crop_width, crop_height;
-            
+
             if (current_zoom_level == 1)
             {
                 crop_width = target_width / 2;
@@ -734,27 +729,29 @@ static void camera_video_play(lv_timer_t *t)
                 crop_width = target_width / 4;
                 crop_height = target_height / 4;
             }
-            
+
             int start_x = (frame->width - crop_width) / 2;
             int start_y = (frame->height - crop_height) / 2;
-            
+
             for (int y = 0; y < target_height; y++)
             {
                 for (int x = 0; x < target_width; x++)
                 {
                     int src_x = start_x + (x * crop_width / target_width);
                     int src_y = start_y + (y * crop_height / target_height);
-                    
-                    if (src_x >= frame->width) src_x = frame->width - 1;
-                    if (src_y >= frame->height) src_y = frame->height - 1;
-                    
+
+                    if (src_x >= frame->width)
+                        src_x = frame->width - 1;
+                    if (src_y >= frame->height)
+                        src_y = frame->height - 1;
+
                     int src_idx = src_y * frame->width + src_x;
                     int dst_idx = y * target_width + x;
                     dst_pixels[dst_idx] = swap_rgb565_bytes(src_pixels[src_idx]);
                 }
             }
         }
-        
+
         lv_canvas_set_buffer(ui_camera_canvas, camera_canvas_buf, target_width, target_height, LV_IMG_CF_TRUE_COLOR);
 
         if (camera_get_photo_flag)
@@ -784,10 +781,10 @@ void ui_event_CameraCanvasTap(lv_event_t *e)
     {
         return;
     }
-    
+
     int next_zoom = (current_zoom_level + 1) % 3;
     ui_set_zoom_level(next_zoom);
-    
+
     if (next_zoom > 0)
     {
         char zoom_text[8];
@@ -942,13 +939,31 @@ static void ui_event_AecValueSlider(lv_event_t *e)
     ESP.restart();
 }
 
+static bool gallery_long_press_triggered = false;
+
 static void ui_event_GalleryButton(lv_event_t *e)
 {
-    if (lv_event_get_code(e) != LV_EVENT_CLICKED)
+    lv_event_code_t code = lv_event_get_code(e);
+
+    if (code == LV_EVENT_PRESSED)
     {
-        return;
+        // Reset flag when button is first pressed
+        gallery_long_press_triggered = false;
     }
-    ui_gallery_show();
+    else if (code == LV_EVENT_LONG_PRESSED)
+    {
+        // Set flag and handle long press
+        gallery_long_press_triggered = true;
+        ui_gallery_show_last_photo();
+    }
+    else if (code == LV_EVENT_CLICKED)
+    {
+        // Only handle click if it wasn't a long press
+        if (!gallery_long_press_triggered)
+        {
+            ui_gallery_show();
+        }
+    }
 }
 
 // event funtions
@@ -1139,7 +1154,7 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_style_pad_all(ui_fps_label, 4, 0);
     lv_obj_set_style_radius(ui_fps_label, 4, 0);
     lv_obj_align(ui_fps_label, LV_ALIGN_BOTTOM_LEFT, 6, -4);
-    
+
     // Zoom level indicator
     ui_zoom_label = lv_label_create(ui_camera_canvas);
     lv_obj_set_style_bg_color(ui_zoom_label, lv_color_black(), 0);
@@ -1149,7 +1164,7 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_style_pad_all(ui_zoom_label, 4, 0);
     lv_obj_set_style_radius(ui_zoom_label, 4, 0);
     lv_obj_align(ui_zoom_label, LV_ALIGN_BOTTOM_RIGHT, -6, -4);
-    
+
     // Set initial zoom indicator text based on saved preference
     if (current_zoom_level == 0)
     {
@@ -1157,7 +1172,7 @@ void ui_HomeScreen_screen_init(void)
     }
     else
     {
-        const char* zoom_text = (current_zoom_level == 1) ? "2x" : "4x";
+        const char *zoom_text = (current_zoom_level == 1) ? "2x" : "4x";
         lv_label_set_text(ui_zoom_label, zoom_text);
     }
 
@@ -1458,7 +1473,9 @@ void ui_HomeScreen_screen_init(void)
     lv_label_set_text(gallery_label, LV_SYMBOL_IMAGE);
     lv_obj_center(gallery_label);
     lv_obj_set_style_text_font(gallery_label, &lv_font_montserrat_28, 0);
+    lv_obj_add_event_cb(ui_gallery_button, ui_event_GalleryButton, LV_EVENT_PRESSED, NULL);
     lv_obj_add_event_cb(ui_gallery_button, ui_event_GalleryButton, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(ui_gallery_button, ui_event_GalleryButton, LV_EVENT_LONG_PRESSED, NULL);
 
     // Center: Camera settings
     ui_camera_settings_button = lv_btn_create(ui_nav_row);

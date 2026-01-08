@@ -594,3 +594,19 @@ static void populate_gallery_list_timer_cb(lv_timer_t *t)
         gallery_populate_timer = nullptr;
     }
 }
+
+void ui_gallery_show_last_photo(void)
+{
+    if (!refresh_gallery_cache() || gallery_photo_cache.empty())
+    {
+        Serial.println("No photos found");
+        return;
+    }
+
+    // Get the first photo (most recent)
+    const String &last_photo = gallery_photo_cache[0];
+    Serial.printf("Opening last photo: %s\n", last_photo.c_str());
+
+    ui_pause_camera_timer();
+    show_photo_preview(last_photo.c_str());
+}
