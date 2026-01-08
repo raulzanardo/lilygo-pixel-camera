@@ -384,7 +384,7 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
     if (zoom_level > 0)
     {
         int crop_width, crop_height;
-        
+
         if (zoom_level == 1)
         {
             crop_width = width / 2;
@@ -395,20 +395,22 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
             crop_width = width / 4;
             crop_height = height / 4;
         }
-        
+
         int start_x = (width - crop_width) / 2;
         int start_y = (height - crop_height) / 2;
-        
+
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
                 int src_x = start_x + (x * crop_width / width);
                 int src_y = start_y + (y * crop_height / height);
-                
-                if (src_x >= width) src_x = width - 1;
-                if (src_y >= height) src_y = height - 1;
-                
+
+                if (src_x >= width)
+                    src_x = width - 1;
+                if (src_y >= height)
+                    src_y = height - 1;
+
                 working[y * width + x] = src[src_y * width + src_x];
             }
         }
@@ -477,7 +479,11 @@ static bool encode_rgb565_png(const char *path, const uint16_t *pixels, uint16_t
         return false;
     }
 
-    rc = png_encoder.encodeBegin(width, height, PNG_PIXEL_TRUECOLOR, 24, nullptr, 3);
+    // Scale up the image by 2x (each pixel becomes 2x2)
+    uint16_t scaled_width = width * 2;
+    uint16_t scaled_height = height * 2;
+
+    rc = png_encoder.encodeBegin(scaled_width, scaled_height, PNG_PIXEL_TRUECOLOR, 24, nullptr, 3);
     if (rc != PNG_SUCCESS)
     {
         Serial.printf("encodeBegin failed: %d\n", rc);
@@ -485,14 +491,33 @@ static bool encode_rgb565_png(const char *path, const uint16_t *pixels, uint16_t
         return false;
     }
 
-    std::vector<uint8_t> temp_line(width * 3);
+    std::vector<uint16_t> scaled_line(scaled_width);
+    std::vector<uint8_t> temp_line(scaled_width * 3);
+
     for (uint16_t y = 0; y < height; ++y)
     {
         const uint16_t *row = pixels + y * width;
-        rc = png_encoder.addRGB565Line(const_cast<uint16_t *>(row), temp_line.data(), true);
+
+        // Create a scaled line: each pixel becomes 2 pixels horizontally
+        for (uint16_t x = 0; x < width; ++x)
+        {
+            scaled_line[x * 2] = row[x];
+            scaled_line[x * 2 + 1] = row[x];
+        }
+
+        // Write the same line twice (for vertical scaling)
+        rc = png_encoder.addRGB565Line(scaled_line.data(), temp_line.data(), true);
         if (rc != PNG_SUCCESS)
         {
-            Serial.printf("addLine failed at row %u: %d\n", y, rc);
+            Serial.printf("addLine failed at row %u: %d\n", y * 2, rc);
+            png_encoder.close();
+            return false;
+        }
+
+        rc = png_encoder.addRGB565Line(scaled_line.data(), temp_line.data(), true);
+        if (rc != PNG_SUCCESS)
+        {
+            Serial.printf("addLine failed at row %u: %d\n", y * 2 + 1, rc);
             png_encoder.close();
             return false;
         }
@@ -580,8 +605,7 @@ static bool save_screenshot_as_bmp(const char *filename, lv_img_dsc_t *img_dsc, 
         0x13, 0x0B, 0, 0,
         0x13, 0x0B, 0, 0,
         0, 0, 0, 0,
-        0, 0, 0, 0
-    };
+        0, 0, 0, 0};
 
     file.write(bmp_header, 54);
 

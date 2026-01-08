@@ -10,7 +10,8 @@
 #include <algorithm>
 #include "../../../include/utilities.h"
 
-extern "C" {
+extern "C"
+{
 #include <extra/libs/png/lodepng.h>
 }
 
@@ -41,35 +42,44 @@ static lv_timer_t *gallery_populate_timer = nullptr;
 // SD helpers - defined externally
 extern bool gallery_ensure_sd_initialized();
 
-static long extract_photo_index(const String &name) {
+static long extract_photo_index(const String &name)
+{
     int start = name.indexOf("photo_");
-    if (start < 0) {
+    if (start < 0)
+    {
         return -1;
     }
     start += 6;
     int end = name.indexOf('.', start);
-    if (end < 0) {
+    if (end < 0)
+    {
         end = name.length();
     }
     String number = name.substring(start, end);
     return number.toInt();
 }
 
-static bool list_captured_photos(std::vector<String> &out_names) {
-    if (!gallery_ensure_sd_initialized()) {
+static bool list_captured_photos(std::vector<String> &out_names)
+{
+    if (!gallery_ensure_sd_initialized())
+    {
         return false;
     }
 
     File root = SD.open("/");
-    if (!root) {
+    if (!root)
+    {
         return false;
     }
 
     File entry = root.openNextFile();
-    while (entry) {
-        if (!entry.isDirectory()) {
+    while (entry)
+    {
+        if (!entry.isDirectory())
+        {
             String name = entry.name();
-            if (name.endsWith(".png") || name.endsWith(".PNG")) {
+            if (name.endsWith(".png") || name.endsWith(".PNG"))
+            {
                 out_names.push_back(name);
             }
         }
@@ -79,41 +89,50 @@ static bool list_captured_photos(std::vector<String> &out_names) {
     }
     root.close();
 
-    std::sort(out_names.begin(), out_names.end(), [](const String &a, const String &b) {
+    std::sort(out_names.begin(), out_names.end(), [](const String &a, const String &b)
+              {
         long ia = extract_photo_index(a);
         long ib = extract_photo_index(b);
         if (ia == ib) {
             return a > b;
         }
-        return ia > ib;
-    });
+        return ia > ib; });
 
     return true;
 }
 
-static bool refresh_gallery_cache() {
+static bool refresh_gallery_cache()
+{
     gallery_photo_cache.clear();
     return list_captured_photos(gallery_photo_cache);
 }
 
-static void set_btn_enabled(lv_obj_t *btn, bool enabled) {
-    if (!btn) {
+static void set_btn_enabled(lv_obj_t *btn, bool enabled)
+{
+    if (!btn)
+    {
         return;
     }
-    if (enabled) {
+    if (enabled)
+    {
         lv_obj_clear_state(btn, LV_STATE_DISABLED);
-    } else {
+    }
+    else
+    {
         lv_obj_add_state(btn, LV_STATE_DISABLED);
     }
 }
 
-static void update_gallery_nav(size_t total_photos) {
-    if (!gallery_page_label || !gallery_prev_btn || !gallery_next_btn) {
+static void update_gallery_nav(size_t total_photos)
+{
+    if (!gallery_page_label || !gallery_prev_btn || !gallery_next_btn)
+    {
         return;
     }
 
     size_t max_page = (total_photos == 0) ? 0 : (total_photos - 1) / GALLERY_PAGE_SIZE;
-    if (gallery_page > static_cast<int>(max_page)) {
+    if (gallery_page > static_cast<int>(max_page))
+    {
         gallery_page = static_cast<int>(max_page);
     }
 
@@ -138,26 +157,33 @@ static inline void gallery_set_loading(bool on)
         lv_obj_add_flag(gallery_loading_label, LV_OBJ_FLAG_HIDDEN);
 }
 
-static void back_to_camera_cb(lv_event_t *e) {
-    if (lv_event_get_code(e) != LV_EVENT_CLICKED) {
+static void back_to_camera_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED)
+    {
         return;
     }
     lv_scr_load_anim(ui_HomeScreen, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200, 0, false);
     ui_resume_camera_timer();
 }
 
-static void back_to_gallery_cb(lv_event_t *e) {
-    if (lv_event_get_code(e) != LV_EVENT_CLICKED) {
+static void back_to_gallery_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED)
+    {
         return;
     }
-    if (gallery_screen) {
+    if (gallery_screen)
+    {
         lv_scr_load_anim(gallery_screen, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200, 0, false);
     }
 }
 
-static bool load_png_to_dsc(const char *path) {
+static bool load_png_to_dsc(const char *path)
+{
     File file = SD.open(path, FILE_READ);
-    if (!file) {
+    if (!file)
+    {
         Serial.printf("Gallery failed to open %s\n", path);
         return false;
     }
@@ -166,7 +192,8 @@ static bool load_png_to_dsc(const char *path) {
     Serial.printf("Reading PNG file %s (%u bytes)\n", path, size);
 
     uint8_t *file_data = (uint8_t *)lodepng_malloc(size);
-    if (!file_data) {
+    if (!file_data)
+    {
         Serial.println("Failed to allocate file buffer");
         file.close();
         return false;
@@ -175,7 +202,8 @@ static bool load_png_to_dsc(const char *path) {
     size_t read = file.read(file_data, size);
     file.close();
 
-    if (read != size) {
+    if (read != size)
+    {
         Serial.println("Gallery read mismatch");
         lodepng_free(file_data);
         return false;
@@ -188,9 +216,11 @@ static bool load_png_to_dsc(const char *path) {
 
     lodepng_free(file_data);
 
-    if (error || decoded == nullptr) {
+    if (error || decoded == nullptr)
+    {
         Serial.printf("PNG decode error %u: %s\n", error, lodepng_error_text(error));
-        if (decoded) {
+        if (decoded)
+        {
             lodepng_free(decoded);
         }
         return false;
@@ -202,7 +232,8 @@ static bool load_png_to_dsc(const char *path) {
     gallery_img_buffer.resize(pixel_count * sizeof(lv_color_t));
 
     lv_color_t *dst = reinterpret_cast<lv_color_t *>(gallery_img_buffer.data());
-    for (size_t i = 0; i < pixel_count; ++i) {
+    for (size_t i = 0; i < pixel_count; ++i)
+    {
         uint8_t r = decoded[i * 4 + 0];
         uint8_t g = decoded[i * 4 + 1];
         uint8_t b = decoded[i * 4 + 2];
@@ -221,10 +252,12 @@ static bool load_png_to_dsc(const char *path) {
     return true;
 }
 
-static void show_photo_preview(const char *filename) {
+static void show_photo_preview(const char *filename)
+{
     Serial.printf("Opening photo %s\n", filename);
 
-    if (!gallery_preview_screen) {
+    if (!gallery_preview_screen)
+    {
         gallery_preview_screen = lv_obj_create(NULL);
         lv_obj_clear_flag(gallery_preview_screen, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -233,6 +266,8 @@ static void show_photo_preview(const char *filename) {
 
         gallery_preview_img = lv_img_create(gallery_preview_screen);
         lv_obj_align(gallery_preview_img, LV_ALIGN_CENTER, 0, 20);
+        // Set zoom to 50% to scale down 2x upscaled images to fit display
+        lv_img_set_zoom(gallery_preview_img, 128); // 128 = 50% zoom (256 = 100%)
 
         gallery_preview_back_btn = lv_btn_create(gallery_preview_screen);
         lv_obj_set_size(gallery_preview_back_btn, 44, 44);
@@ -259,10 +294,13 @@ static void show_photo_preview(const char *filename) {
     lv_label_set_text_fmt(gallery_preview_label, "%s", filename);
 
     bool loaded = load_png_to_dsc(gallery_img_path.c_str());
-    if (loaded) {
+    if (loaded)
+    {
         lv_img_set_src(gallery_preview_img, &gallery_img_dsc);
         lv_obj_clear_flag(gallery_preview_img, LV_OBJ_FLAG_HIDDEN);
-    } else {
+    }
+    else
+    {
         lv_label_set_text_fmt(gallery_preview_label, "Failed: %s", filename);
         lv_obj_add_flag(gallery_preview_img, LV_OBJ_FLAG_HIDDEN);
     }
@@ -270,14 +308,17 @@ static void show_photo_preview(const char *filename) {
     lv_scr_load_anim(gallery_preview_screen, LV_SCR_LOAD_ANIM_MOVE_LEFT, 200, 0, false);
 }
 
-static void gallery_item_event_cb(lv_event_t *e) {
-    if (lv_event_get_code(e) != LV_EVENT_CLICKED) {
+static void gallery_item_event_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED)
+    {
         return;
     }
 
     lv_obj_t *btn = lv_event_get_target(e);
     const char *name = (const char *)lv_obj_get_user_data(btn);
-    if (!name) {
+    if (!name)
+    {
         return;
     }
 
@@ -285,26 +326,32 @@ static void gallery_item_event_cb(lv_event_t *e) {
     show_photo_preview(name);
 }
 
-static void gallery_prev_page_cb(lv_event_t *e) {
+static void gallery_prev_page_cb(lv_event_t *e)
+{
     LV_UNUSED(e);
-    if (gallery_page > 0) {
+    if (gallery_page > 0)
+    {
         gallery_page--;
         populate_gallery_list();
     }
 }
 
-static void gallery_next_page_cb(lv_event_t *e) {
+static void gallery_next_page_cb(lv_event_t *e)
+{
     LV_UNUSED(e);
     size_t total = gallery_photo_cache.size();
     size_t max_page = (total == 0) ? 0 : (total - 1) / GALLERY_PAGE_SIZE;
-    if (static_cast<size_t>(gallery_page) < max_page) {
+    if (static_cast<size_t>(gallery_page) < max_page)
+    {
         gallery_page++;
         populate_gallery_list();
     }
 }
 
-static void populate_gallery_list() {
-    if (!gallery_list) {
+static void populate_gallery_list()
+{
+    if (!gallery_list)
+    {
         return;
     }
 
@@ -312,13 +359,15 @@ static void populate_gallery_list() {
 
     lv_obj_clean(gallery_list);
 
-    if (!refresh_gallery_cache()) {
+    if (!refresh_gallery_cache())
+    {
         gallery_set_loading(false);
         return;
     }
 
     size_t total = gallery_photo_cache.size();
-    if (total == 0) {
+    if (total == 0)
+    {
         lv_obj_t *label = lv_label_create(gallery_list);
         lv_label_set_text(label, "No photos found");
         update_gallery_nav(total);
@@ -327,9 +376,11 @@ static void populate_gallery_list() {
     }
 
     size_t start = static_cast<size_t>(gallery_page) * GALLERY_PAGE_SIZE;
-    if (start >= total) {
+    if (start >= total)
+    {
         gallery_page = static_cast<int>(total / GALLERY_PAGE_SIZE);
-        if (gallery_page < 0) {
+        if (gallery_page < 0)
+        {
             gallery_page = 0;
         }
         start = static_cast<size_t>(gallery_page) * GALLERY_PAGE_SIZE;
@@ -337,7 +388,8 @@ static void populate_gallery_list() {
 
     size_t end = std::min(total, start + GALLERY_PAGE_SIZE);
 
-    for (size_t i = start; i < end; ++i) {
+    for (size_t i = start; i < end; ++i)
+    {
         const String &name = gallery_photo_cache[i];
 
         // Create a button with icon and text for vertical layout
@@ -367,38 +419,48 @@ static void populate_gallery_list() {
     gallery_set_loading(false);
 }
 
-static void delete_photo_cb(lv_event_t *e) {
-    if (lv_event_get_code(e) != LV_EVENT_CLICKED) {
+static void delete_photo_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED)
+    {
         return;
     }
 
-    if (gallery_current_photo_name.empty()) {
+    if (gallery_current_photo_name.empty())
+    {
         Serial.println("No photo selected for deletion");
         return;
     }
 
-    if (!gallery_ensure_sd_initialized()) {
+    if (!gallery_ensure_sd_initialized())
+    {
         Serial.println("SD not ready, cannot delete photo");
         return;
     }
 
     std::string path = "/" + gallery_current_photo_name;
-    if (SD.remove(path.c_str())) {
+    if (SD.remove(path.c_str()))
+    {
         Serial.printf("Deleted photo %s\n", path.c_str());
         gallery_current_photo_name.clear();
         populate_gallery_list();
 
-        if (gallery_screen) {
+        if (gallery_screen)
+        {
             lv_scr_load_anim(gallery_screen, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200, 0, false);
         }
-    } else {
+    }
+    else
+    {
         Serial.printf("Failed to delete photo %s\n", path.c_str());
         lv_label_set_text_fmt(gallery_preview_label, "Delete failed: %s", path.c_str());
     }
 }
 
-static void build_gallery_screen() {
-    if (gallery_screen) {
+static void build_gallery_screen()
+{
+    if (gallery_screen)
+    {
         return;
     }
 
@@ -439,12 +501,12 @@ static void build_gallery_screen() {
     // Gallery list - vertical scrolling (flex grow to fill remaining space)
     gallery_list = lv_obj_create(gallery_screen);
     lv_obj_set_width(gallery_list, LV_PCT(100));
-    lv_obj_set_flex_grow(gallery_list, 1); // Grow to fill available space
+    lv_obj_set_flex_grow(gallery_list, 1);                   // Grow to fill available space
     lv_obj_set_flex_flow(gallery_list, LV_FLEX_FLOW_COLUMN); // Changed to vertical
     lv_obj_set_flex_align(gallery_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_all(gallery_list, 4, 0);
-    lv_obj_set_style_pad_row(gallery_list, 4, 0); // Row spacing for vertical layout
-    lv_obj_set_scroll_dir(gallery_list, LV_DIR_VER); // Changed to vertical scrolling
+    lv_obj_set_style_pad_row(gallery_list, 4, 0);                 // Row spacing for vertical layout
+    lv_obj_set_scroll_dir(gallery_list, LV_DIR_VER);              // Changed to vertical scrolling
     lv_obj_set_scroll_snap_y(gallery_list, LV_SCROLL_SNAP_START); // Changed to Y axis
 
     // Center loading label (hidden by default)
@@ -494,11 +556,13 @@ static void build_gallery_screen() {
     lv_obj_add_event_cb(gallery_next_btn, gallery_next_page_cb, LV_EVENT_CLICKED, NULL);
 }
 
-lv_obj_t *ui_get_gallery_screen(void) {
+lv_obj_t *ui_get_gallery_screen(void)
+{
     return gallery_screen;
 }
 
-void ui_gallery_show(void) {
+void ui_gallery_show(void)
+{
     build_gallery_screen();
     Serial.println("Populating gallery list");
     gallery_set_loading(true);
