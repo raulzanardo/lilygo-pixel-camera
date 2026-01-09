@@ -202,6 +202,7 @@ Future improvements and features to implement:
 - **WiFi Features**: Remote camera control, live streaming, cloud backup
 - **Battery Optimization**: Low-power modes, sleep scheduling
 - **Storage features**: format, batch delete
+- **Printer integration**: implement a thermal printer integrations
 
 ## References
 
