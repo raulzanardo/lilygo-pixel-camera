@@ -121,7 +121,7 @@ static const palette_option_t kPaletteOptions[] = {
     {PALETTE_4COLOR, PALETTE_4COLOR_SIZE},
     {PALETTE_16COLOR, PALETTE_16COLOR_SIZE},
     {PALETTE_FRESTA, PALETTE_FRESTA_SIZE},
-};
+    {PALETTE_RGB, PALETTE_RGB_SIZE}};
 static const uint8_t kPaletteOptionCount = sizeof(kPaletteOptions) / sizeof(kPaletteOptions[0]);
 
 static int32_t onWrite(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t bufsize)
@@ -1261,7 +1261,8 @@ void ui_HomeScreen_screen_init(void)
         "Black & White\n"
         "CGA 4-color\n"
         "VGA 16-color\n"
-        "Fresta");
+        "Fresta\n"
+        "RGB");
     lv_dropdown_set_selected(ui_PaletteDropdown, current_palette_index);
 
     /* Dithering dropdown */

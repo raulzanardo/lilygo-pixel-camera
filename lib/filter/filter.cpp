@@ -48,15 +48,13 @@ void applyDithering(camera_fb_t *cameraFb, int redBits, int greenBits, int blueB
     const bool swapBytes = true;
     const int bayer2x2[2][2] = {
         {0, 2},
-        {3, 1}
-    };
+        {3, 1}};
 
     const int bayer4x4[4][4] = {
         {0, 8, 2, 10},
         {12, 4, 14, 6},
         {3, 11, 1, 9},
-        {15, 7, 13, 5}
-    };
+        {15, 7, 13, 5}};
 
     const int bayer8x8[8][8] = {
         {0, 32, 8, 40, 2, 34, 10, 42},
@@ -66,8 +64,7 @@ void applyDithering(camera_fb_t *cameraFb, int redBits, int greenBits, int blueB
         {3, 35, 11, 43, 1, 33, 9, 41},
         {51, 19, 59, 27, 49, 17, 57, 25},
         {15, 47, 7, 39, 13, 45, 5, 37},
-        {63, 31, 55, 23, 61, 29, 53, 21}
-    };
+        {63, 31, 55, 23, 61, 29, 53, 21}};
 
     // Clamp bayerSize to valid values
     if (bayerSize != 2 && bayerSize != 4 && bayerSize != 8)
@@ -75,7 +72,8 @@ void applyDithering(camera_fb_t *cameraFb, int redBits, int greenBits, int blueB
         bayerSize = 4; // Default to 4x4
     }
 
-    int bayerDivisor = (bayerSize == 2) ? 4 : (bayerSize == 4) ? 16 : 64;
+    int bayerDivisor = (bayerSize == 2) ? 4 : (bayerSize == 4) ? 16
+                                                               : 64;
 
     // Allocate memory using PSRAM
     uint8_t *redBuffer = (uint8_t *)ps_malloc(width * height * sizeof(uint8_t));
@@ -531,15 +529,13 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
     // Bayer matrix definitions
     const int bayer2x2[2][2] = {
         {0, 2},
-        {3, 1}
-    };
+        {3, 1}};
 
     const int bayer4x4[4][4] = {
         {0, 8, 2, 10},
         {12, 4, 14, 6},
         {3, 11, 1, 9},
-        {15, 7, 13, 5}
-    };
+        {15, 7, 13, 5}};
 
     const int bayer8x8[8][8] = {
         {0, 32, 8, 40, 2, 34, 10, 42},
@@ -549,8 +545,7 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
         {3, 35, 11, 43, 1, 33, 9, 41},
         {51, 19, 59, 27, 49, 17, 57, 25},
         {15, 47, 7, 39, 13, 45, 5, 37},
-        {63, 31, 55, 23, 61, 29, 53, 21}
-    };
+        {63, 31, 55, 23, 61, 29, 53, 21}};
 
     // Clamp bayerSize to valid values
     if (bayerSize != 2 && bayerSize != 4 && bayerSize != 8)
@@ -558,7 +553,8 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
         bayerSize = 4; // Default to 4x4
     }
 
-    int bayerDivisor = (bayerSize == 2) ? 4 : (bayerSize == 4) ? 16 : 64;
+    int bayerDivisor = (bayerSize == 2) ? 4 : (bayerSize == 4) ? 16
+                                                               : 64;
 
     // Downscale if requested (2x2, 4x4, 8x8)
     uint16_t *workingBuffer = imageBuffer;
@@ -648,8 +644,8 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
         if (!redErrorBuffer || !greenErrorBuffer || !blueErrorBuffer)
         {
             if (outputBuffer)
-            if (redErrorBuffer)
-                free(redErrorBuffer);
+                if (redErrorBuffer)
+                    free(redErrorBuffer);
             if (greenErrorBuffer)
                 free(greenErrorBuffer);
             if (blueErrorBuffer)
@@ -1129,13 +1125,13 @@ void reduceResolution(camera_fb_t *cameraFb, int targetWidth, int targetHeight)
 
     int srcWidth = cameraFb->width;
     int srcHeight = cameraFb->height;
-    
+
     // If already at target resolution, nothing to do
     if (srcWidth == targetWidth && srcHeight == targetHeight)
     {
         return;
     }
-    
+
     uint16_t *srcBuffer = (uint16_t *)cameraFb->buf;
 
     // Allocate temporary buffer for downsampled image
@@ -1183,14 +1179,12 @@ void reduceResolution(camera_fb_t *cameraFb, int targetWidth, int targetHeight)
     free(outputBuffer);
 }
 
-
-
 //////////////////////////////////////////////////////////////////////////////////////////
 /**
  * Apply color reduction to 8 colors
  * Extracts the 8 most dominant colors from the image using k-means clustering,
  * then replaces all pixels with their nearest dominant color
- * 
+ *
  * @param cameraFb Pointer to camera frame buffer
  */
 void applyColorReduction(camera_fb_t *cameraFb)
@@ -1209,25 +1203,25 @@ void applyColorReduction(camera_fb_t *cameraFb)
     const bool swapBytes = true;
 
     const int numColors = 8;
-    
+
     // Step 1: Initialize k-means centroids with evenly spaced pixels from the image
     uint32_t centroids[8];
     int step = totalPixels / numColors;
-    
+
     for (int i = 0; i < numColors; i++)
     {
         int pixelIdx = (i * step + step / 2) % totalPixels;
         uint16_t pixel = frameBuffer[pixelIdx];
-        
+
         if (swapBytes)
         {
             pixel = ((pixel << 8) | (pixel >> 8));
         }
-        
+
         uint8_t r = ((pixel >> 11) & 0x1F) << 3;
         uint8_t g = ((pixel >> 5) & 0x3F) << 2;
         uint8_t b = (pixel & 0x1F) << 3;
-        
+
         centroids[i] = (r << 16) | (g << 8) | b;
     }
 
@@ -1245,25 +1239,25 @@ void applyColorReduction(camera_fb_t *cameraFb)
         for (int i = 0; i < totalPixels; i++)
         {
             uint16_t pixel = frameBuffer[i];
-            
+
             if (swapBytes)
             {
                 pixel = ((pixel << 8) | (pixel >> 8));
             }
-            
+
             uint8_t r = ((pixel >> 11) & 0x1F) << 3;
             uint8_t g = ((pixel >> 5) & 0x3F) << 2;
             uint8_t b = (pixel & 0x1F) << 3;
-            
+
             int nearestIdx = 0;
             int minDist = INT_MAX;
-            
+
             for (int c = 0; c < numColors; c++)
             {
                 uint8_t cr = (centroids[c] >> 16) & 0xFF;
                 uint8_t cg = (centroids[c] >> 8) & 0xFF;
                 uint8_t cb = centroids[c] & 0xFF;
-                
+
                 int dist = colorDistance(r, g, b, cr, cg, cb);
                 if (dist < minDist)
                 {
@@ -1271,36 +1265,36 @@ void applyColorReduction(camera_fb_t *cameraFb)
                     nearestIdx = c;
                 }
             }
-            
+
             assignments[i] = nearestIdx;
         }
-        
+
         // Recalculate centroids as average of assigned pixels
         uint32_t sumR[8] = {0};
         uint32_t sumG[8] = {0};
         uint32_t sumB[8] = {0};
         uint32_t count[8] = {0};
-        
+
         for (int i = 0; i < totalPixels; i++)
         {
             uint16_t pixel = frameBuffer[i];
-            
+
             if (swapBytes)
             {
                 pixel = ((pixel << 8) | (pixel >> 8));
             }
-            
+
             uint8_t r = ((pixel >> 11) & 0x1F) << 3;
             uint8_t g = ((pixel >> 5) & 0x3F) << 2;
             uint8_t b = (pixel & 0x1F) << 3;
-            
+
             int cluster = assignments[i];
             sumR[cluster] += r;
             sumG[cluster] += g;
             sumB[cluster] += b; // Add the RGB values to the sum
             count[cluster]++;
         }
-        
+
         // Update centroids (avoid division by zero)
         for (int c = 0; c < numColors; c++)
         {
@@ -1344,7 +1338,7 @@ void applyColorReduction(camera_fb_t *cameraFb)
 /**
  * Apply Sobel edge detection filter to the camera frame buffer
  * Detects edges by computing gradients in X and Y directions
- * 
+ *
  * @param cameraFb Pointer to camera frame buffer
  * @param mode Edge detection mode: 1=Grayscale, 2=Color
  */
@@ -1375,15 +1369,13 @@ void applyEdgeDetection(camera_fb_t *cameraFb, int mode)
     int sobelX[3][3] = {
         {-1, 0, 1},
         {-2, 0, 2},
-        {-1, 0, 1}
-    };
-    
+        {-1, 0, 1}};
+
     // Gy (vertical edges)
     int sobelY[3][3] = {
         {-1, -2, -1},
-        { 0,  0,  0},
-        { 1,  2,  1}
-    };
+        {0, 0, 0},
+        {1, 2, 1}};
 
     // Process each pixel
     for (int y = 0; y < height; y++)
@@ -1391,7 +1383,7 @@ void applyEdgeDetection(camera_fb_t *cameraFb, int mode)
         for (int x = 0; x < width; x++)
         {
             int idx = y * width + x;
-            
+
             // Skip border pixels
             if (x == 0 || x == width - 1 || y == 0 || y == height - 1)
             {
@@ -1411,18 +1403,18 @@ void applyEdgeDetection(camera_fb_t *cameraFb, int mode)
                     {
                         int pixelIdx = (y + ky) * width + (x + kx);
                         uint16_t pixel = frameBuffer[pixelIdx];
-                        
+
                         if (swapBytes)
                         {
                             pixel = ((pixel << 8) | (pixel >> 8));
                         }
-                        
+
                         // Convert to grayscale using luminance formula
                         uint8_t r = ((pixel >> 11) & 0x1F) << 3;
                         uint8_t g = ((pixel >> 5) & 0x3F) << 2;
                         uint8_t b = (pixel & 0x1F) << 3;
                         uint8_t gray = (r * 30 + g * 59 + b * 11) / 100;
-                        
+
                         // Apply kernel weights
                         gx += gray * sobelX[ky + 1][kx + 1];
                         gy += gray * sobelY[ky + 1][kx + 1];
@@ -1431,25 +1423,27 @@ void applyEdgeDetection(camera_fb_t *cameraFb, int mode)
 
                 // Calculate gradient magnitude
                 int magnitude = (int)sqrt(gx * gx + gy * gy);
-                
+
                 // Clamp to 0-255
-                if (magnitude > 255) magnitude = 255;
-                if (magnitude < 0) magnitude = 0;
-                
+                if (magnitude > 255)
+                    magnitude = 255;
+                if (magnitude < 0)
+                    magnitude = 0;
+
                 // Black edges on white background
                 uint8_t edgeValue = magnitude;
-                
+
                 // Convert grayscale to RGB565
                 uint8_t r5 = edgeValue >> 3;
                 uint8_t g6 = edgeValue >> 2;
                 uint8_t b5 = edgeValue >> 3;
                 uint16_t rgb565 = (r5 << 11) | (g6 << 5) | b5;
-                
+
                 if (swapBytes)
                 {
                     rgb565 = ((rgb565 << 8) | (rgb565 >> 8));
                 }
-                
+
                 edgeBuffer[idx] = rgb565;
             }
             else if (mode == 2)
@@ -1466,20 +1460,20 @@ void applyEdgeDetection(camera_fb_t *cameraFb, int mode)
                     {
                         int pixelIdx = (y + ky) * width + (x + kx);
                         uint16_t pixel = frameBuffer[pixelIdx];
-                        
+
                         if (swapBytes)
                         {
                             pixel = ((pixel << 8) | (pixel >> 8));
                         }
-                        
+
                         // Extract RGB channels
                         uint8_t r = ((pixel >> 11) & 0x1F) << 3;
                         uint8_t g = ((pixel >> 5) & 0x3F) << 2;
                         uint8_t b = (pixel & 0x1F) << 3;
-                        
+
                         int weight_x = sobelX[ky + 1][kx + 1];
                         int weight_y = sobelY[ky + 1][kx + 1];
-                        
+
                         // Apply kernel weights to each channel
                         gx_r += r * weight_x;
                         gy_r += r * weight_y;
@@ -1494,28 +1488,31 @@ void applyEdgeDetection(camera_fb_t *cameraFb, int mode)
                 int mag_r = (int)sqrt(gx_r * gx_r + gy_r * gy_r);
                 int mag_g = (int)sqrt(gx_g * gx_g + gy_g * gy_g);
                 int mag_b = (int)sqrt(gx_b * gx_b + gy_b * gy_b);
-                
+
                 // Clamp to 0-255
-                if (mag_r > 255) mag_r = 255;
-                if (mag_g > 255) mag_g = 255;
-                if (mag_b > 255) mag_b = 255;
-                
+                if (mag_r > 255)
+                    mag_r = 255;
+                if (mag_g > 255)
+                    mag_g = 255;
+                if (mag_b > 255)
+                    mag_b = 255;
+
                 // Black edges on white background
                 uint8_t edge_r = mag_r;
                 uint8_t edge_g = mag_g;
                 uint8_t edge_b = mag_b;
-                
+
                 // Convert to RGB565
                 uint8_t r5 = edge_r >> 3;
                 uint8_t g6 = edge_g >> 2;
                 uint8_t b5 = edge_b >> 3;
                 uint16_t rgb565 = (r5 << 11) | (g6 << 5) | b5;
-                
+
                 if (swapBytes)
                 {
                     rgb565 = ((rgb565 << 8) | (rgb565 >> 8));
                 }
-                
+
                 edgeBuffer[idx] = rgb565;
             }
         }
@@ -1532,7 +1529,7 @@ void applyEdgeDetection(camera_fb_t *cameraFb, int mode)
 /**
  * Auto-adjust brightness, contrast, and gamma based on histogram analysis
  * Analyzes the image and applies optimal adjustments
- * 
+ *
  * @param cameraFb Pointer to camera frame buffer
  */
 void applyAutoAdjust(camera_fb_t *cameraFb)
@@ -1551,31 +1548,31 @@ void applyAutoAdjust(camera_fb_t *cameraFb)
     bool swapBytes = true;
     // Build histogram for luminance
     int histogram[256] = {0};
-    
+
     for (int i = 0; i < totalPixels; i++)
     {
         uint16_t pixel = frameBuffer[i];
-        
+
         if (swapBytes)
         {
             pixel = ((pixel << 8) | (pixel >> 8));
         }
-        
+
         // Extract RGB and calculate luminance
         uint8_t r = ((pixel >> 11) & 0x1F) << 3;
         uint8_t g = ((pixel >> 5) & 0x3F) << 2;
         uint8_t b = (pixel & 0x1F) << 3;
         uint8_t lum = (r * 30 + g * 59 + b * 11) / 100;
-        
+
         histogram[lum]++;
     }
 
     // Find min and max values (1% and 99% percentiles to ignore outliers)
     int cumulative = 0;
     int minVal = 0, maxVal = 255;
-    int threshold1 = totalPixels / 100;  // 1%
-    int threshold99 = totalPixels * 99 / 100;  // 99%
-    
+    int threshold1 = totalPixels / 100;       // 1%
+    int threshold99 = totalPixels * 99 / 100; // 99%
+
     for (int i = 0; i < 256; i++)
     {
         cumulative += histogram[i];
@@ -1599,10 +1596,10 @@ void applyAutoAdjust(camera_fb_t *cameraFb)
     // Calculate contrast and brightness adjustments
     float contrast = 255.0f / (maxVal - minVal);
     float brightness = -minVal * contrast;
-    
+
     // Auto gamma (aim for mid-tone at 128)
     float midTone = (minVal + maxVal) / 2.0f;
-    float gamma = (midTone < 128) ? 1.2f : 0.8f;  // Lighten dark images, darken bright images
+    float gamma = (midTone < 128) ? 1.2f : 0.8f; // Lighten dark images, darken bright images
 
     // Precompute gamma-adjusted lookup to avoid per-pixel powf
     uint8_t gamma_lut[256];
@@ -1618,33 +1615,33 @@ void applyAutoAdjust(camera_fb_t *cameraFb)
     for (int i = 0; i < totalPixels; i++)
     {
         uint16_t pixel = frameBuffer[i];
-        
+
         if (swapBytes)
         {
             pixel = ((pixel << 8) | (pixel >> 8));
         }
-        
+
         // Extract RGB
         uint8_t r = ((pixel >> 11) & 0x1F) << 3;
         uint8_t g = ((pixel >> 5) & 0x3F) << 2;
         uint8_t b = (pixel & 0x1F) << 3;
-        
+
         // Apply contrast/brightness + gamma via LUT
         uint8_t rf = gamma_lut[r];
         uint8_t gf = gamma_lut[g];
         uint8_t bf = gamma_lut[b];
-        
+
         // Convert back to RGB565
         uint8_t r5 = (uint8_t)rf >> 3;
         uint8_t g6 = (uint8_t)gf >> 2;
         uint8_t b5 = (uint8_t)bf >> 3;
         uint16_t rgb565 = (r5 << 11) | (g6 << 5) | b5;
-        
+
         if (swapBytes)
         {
             rgb565 = ((rgb565 << 8) | (rgb565 >> 8));
         }
-        
+
         frameBuffer[i] = rgb565;
     }
 }
@@ -1665,7 +1662,7 @@ void applyCRT(camera_fb_t *cameraFb, int pixelSize)
     int width = cameraFb->width;
     int height = cameraFb->height;
     uint16_t *frameBuffer = (uint16_t *)cameraFb->buf;
-    
+
     const bool swapBytes = true;
 
     // Process image in blocks
@@ -1681,11 +1678,11 @@ void applyCRT(camera_fb_t *cameraFb, int pixelSize)
             int blockY = by / pixelSize;
             int lineOffset = (blockY % 3) * 2;
             int channel = (blockX + lineOffset) % 3;
-            
+
             // First pass: Calculate average color for this block
             uint32_t sumR = 0, sumG = 0, sumB = 0;
             int pixelCount = 0;
-            
+
             for (int dy = 0; dy < pixelSize && (by + dy) < height; dy++)
             {
                 for (int dx = 0; dx < pixelSize && (bx + dx) < width; dx++)
@@ -1693,14 +1690,14 @@ void applyCRT(camera_fb_t *cameraFb, int pixelSize)
                     int x = bx + dx;
                     int y = by + dy;
                     int i = y * width + x;
-                    
+
                     uint16_t pixel = frameBuffer[i];
-                    
+
                     if (swapBytes)
                     {
                         pixel = ((pixel << 8) | (pixel >> 8));
                     }
-                    
+
                     // Extract RGB565 components and accumulate
                     sumR += (pixel >> 11) & 0x1F;
                     sumG += (pixel >> 5) & 0x3F;
@@ -1708,12 +1705,12 @@ void applyCRT(camera_fb_t *cameraFb, int pixelSize)
                     pixelCount++;
                 }
             }
-            
+
             // Calculate average RGB values
             uint8_t avgR5 = sumR / pixelCount;
             uint8_t avgG6 = sumG / pixelCount;
             uint8_t avgB5 = sumB / pixelCount;
-            
+
             // Apply channel filter based on block
             if (channel == 0)
             {
@@ -1733,19 +1730,19 @@ void applyCRT(camera_fb_t *cameraFb, int pixelSize)
                 avgR5 = 0;
                 avgG6 = 0;
             }
-            
+
             // Reconstruct averaged and filtered RGB565
             uint16_t blockColor = (avgR5 << 11) | (avgG6 << 5) | avgB5;
-            
+
             if (swapBytes)
             {
                 blockColor = ((blockColor << 8) | (blockColor >> 8));
             }
-            
+
             // Determine if this block row should be darkened (odd block rows)
             int blockRowIndex = by / pixelSize;
             bool darkenBlock = (blockRowIndex % 2 == 1);
-            
+
             // Apply darkening to the block color if it's on an odd block row
             uint16_t finalBlockColor = blockColor;
             if (darkenBlock)
@@ -1756,21 +1753,21 @@ void applyCRT(camera_fb_t *cameraFb, int pixelSize)
                 {
                     tempPixel = ((tempPixel << 8) | (tempPixel >> 8));
                 }
-                
+
                 // Reduce brightness to 25% for scanlines
                 uint8_t r5 = ((tempPixel >> 11) & 0x1F) * 0.25;
                 uint8_t g6 = ((tempPixel >> 5) & 0x3F) * 0.25;
                 uint8_t b5 = (tempPixel & 0x1F) * 0.25;
-                
+
                 // Reconstruct pixel
                 finalBlockColor = (r5 << 11) | (g6 << 5) | b5;
-                
+
                 if (swapBytes)
                 {
                     finalBlockColor = ((finalBlockColor << 8) | (finalBlockColor >> 8));
                 }
             }
-            
+
             // Second pass: Fill entire block with the (possibly darkened) filtered color
             for (int dy = 0; dy < pixelSize && (by + dy) < height; dy++)
             {
@@ -1779,7 +1776,7 @@ void applyCRT(camera_fb_t *cameraFb, int pixelSize)
                     int x = bx + dx;
                     int y = by + dy;
                     int i = y * width + x;
-                    
+
                     frameBuffer[i] = finalBlockColor;
                 }
             }

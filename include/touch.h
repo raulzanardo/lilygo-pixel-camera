@@ -18,18 +18,18 @@ int16_t touch_max_x = 0, touch_max_y = 0;
 int16_t touch_raw_x = 0, touch_raw_y = 0;
 int16_t touch_last_x = 0, touch_last_y = 0;
 
-
 #include <Wire.h>
 #include <TouchLib.h>
 TouchLib touch(Wire, BOARD_I2C_SDA, BOARD_I2C_SCL, L58_SLAVE_ADDRESS);
-
 
 void touch_init(int16_t w, int16_t h, uint8_t r)
 {
     touch_max_x = w - 1;
     touch_max_y = h - 1;
-    if (touch_map_x1 == -1) {
-        switch (r) {
+    if (touch_map_x1 == -1)
+    {
+        switch (r)
+        {
         case 3:
             touch_swap_xy = true;
             touch_map_x1 = touch_max_x;
@@ -71,7 +71,6 @@ void touch_init(int16_t w, int16_t h, uint8_t r)
 #endif
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL);
     touch.init();
-
 }
 
 bool touch_has_signal()
@@ -82,10 +81,13 @@ bool touch_has_signal()
 
 void translate_touch_raw()
 {
-    if (touch_swap_xy) {
+    if (touch_swap_xy)
+    {
         touch_last_x = map(touch_raw_y, touch_map_x1, touch_map_x2, 0, touch_max_x);
         touch_last_y = map(touch_raw_x, touch_map_y1, touch_map_y2, 0, touch_max_y);
-    } else {
+    }
+    else
+    {
         touch_last_x = map(touch_raw_x, touch_map_x1, touch_map_x2, 0, touch_max_x);
         touch_last_y = map(touch_raw_y, touch_map_y1, touch_map_y2, 0, touch_max_y);
     }
@@ -94,7 +96,8 @@ void translate_touch_raw()
 
 bool touch_touched()
 {
-    if (touch.read()) {
+    if (touch.read())
+    {
         TP_Point t = touch.getPoint(0);
         touch_raw_x = t.x;
         touch_raw_y = t.y;

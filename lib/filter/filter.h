@@ -4,7 +4,6 @@
 #include <Arduino.h>
 #include <esp_camera.h>
 
-
 // Helper functions
 int colorDistance(uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t g2, uint8_t b2);
 uint16_t *createSmallDitheredImage(camera_fb_t *cameraFb);
