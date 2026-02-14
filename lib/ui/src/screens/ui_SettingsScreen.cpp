@@ -122,6 +122,7 @@ static void build_settings_screen()
     {
         lv_obj_add_state(ui_settings_flash_switch, LV_STATE_CHECKED);
     }
+    lv_obj_set_size(ui_settings_flash_switch, 60, 40);
     lv_obj_add_event_cb(ui_settings_flash_switch, ui_event_FlashSwitch, LV_EVENT_ALL, NULL);
 
     // storage
@@ -142,20 +143,20 @@ static void build_settings_screen()
 
     ui_settings_storage_switch = lv_switch_create(storage_row);
     lv_obj_add_event_cb(ui_settings_storage_switch, ui_event_StorageSwitch, LV_EVENT_ALL, NULL);
+    lv_obj_set_size(ui_settings_storage_switch, 60, 40);
 
-
-        // auto adjust toggle
+    // auto adjust toggle
     lv_obj_t *auto_adjust_row = lv_obj_create(ui_settings_screen);
     lv_obj_set_width(auto_adjust_row, LV_PCT(100));
     lv_obj_set_height(auto_adjust_row, LV_SIZE_CONTENT);
     lv_obj_clear_flag(auto_adjust_row, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_opa(auto_adjust_row, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(  auto_adjust_row, 0, 0);
+    lv_obj_set_style_border_width(auto_adjust_row, 0, 0);
     lv_obj_set_style_pad_all(auto_adjust_row, 0, 0);
     lv_obj_set_style_pad_row(auto_adjust_row, 8, 0);
     lv_obj_set_style_pad_column(auto_adjust_row, 8, 0);
     lv_obj_set_flex_flow(auto_adjust_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(auto_adjust_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER); 
+    lv_obj_set_flex_align(auto_adjust_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     lv_obj_t *auto_adjust_label = lv_label_create(auto_adjust_row);
     lv_label_set_text(auto_adjust_label, "Auto adjust");
@@ -165,6 +166,7 @@ static void build_settings_screen()
     {
         lv_obj_add_state(ui_settings_auto_adjust_switch, LV_STATE_CHECKED);
     }
+    lv_obj_set_size(ui_settings_auto_adjust_switch, 60, 40);
     lv_obj_add_event_cb(ui_settings_auto_adjust_switch, ui_settings_auto_adjust_event, LV_EVENT_ALL, NULL);
 
     // screenshot mode toggle
@@ -188,6 +190,7 @@ static void build_settings_screen()
     {
         lv_obj_add_state(ui_settings_screenshot_switch, LV_STATE_CHECKED);
     }
+    lv_obj_set_size(ui_settings_screenshot_switch, 60, 40);
     lv_obj_add_event_cb(ui_settings_screenshot_switch, ui_settings_screenshot_event, LV_EVENT_ALL, NULL);
 
     // Add flexible spacer to push version label to bottom
@@ -201,30 +204,34 @@ static void build_settings_screen()
 
 static void show_version_label()
 {
-    if (!ui_settings_screen) {
+    if (!ui_settings_screen)
+    {
         return;
     }
-    
+
     // Create version label in the flex container (after spacer)
     static lv_obj_t *version_label = NULL;
-    if (!version_label) {
+    if (!version_label)
+    {
         version_label = lv_label_create(ui_settings_screen);
-        
+
         // Convert __DATE__ (format "Mmm dd yyyy") to YYYYMMDD
-        const char* months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+        const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
         char compile_date[9];
         int month = 0;
         char mon_str[4];
         int day, year;
         sscanf(__DATE__, "%s %d %d", mon_str, &day, &year);
-        for (int i = 0; i < 12; i++) {
-            if (strcmp(mon_str, months[i]) == 0) {
+        for (int i = 0; i < 12; i++)
+        {
+            if (strcmp(mon_str, months[i]) == 0)
+            {
                 month = i + 1;
                 break;
             }
         }
         snprintf(compile_date, sizeof(compile_date), "%04d%02d%02d", year, month, day);
-        
+
         lv_label_set_text_fmt(version_label, "Version: %s (%s)", FIRMWARE_VERSION, compile_date);
         lv_obj_set_style_text_color(version_label, lv_palette_main(LV_PALETTE_GREY), 0);
         lv_obj_set_style_text_font(version_label, &lv_font_montserrat_12, 0);
