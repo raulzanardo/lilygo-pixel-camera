@@ -476,18 +476,18 @@ static void build_gallery_screen()
     // Header row with back button and title
     lv_obj_t *header_row = lv_obj_create(gallery_screen);
     lv_obj_set_width(header_row, LV_PCT(100));
-    lv_obj_set_height(header_row, 36);
+    lv_obj_set_height(header_row, 72);
     lv_obj_clear_flag(header_row, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_opa(header_row, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(header_row, 0, 0);
     lv_obj_set_style_pad_all(header_row, 0, 0);
-    lv_obj_set_style_pad_column(header_row, 8, 0);
+    lv_obj_set_style_pad_column(header_row, 12, 0);
     lv_obj_set_flex_flow(header_row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(header_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     lv_obj_t *back_btn = lv_btn_create(header_row);
-    lv_obj_set_size(back_btn, 36, 36);
-    lv_obj_set_style_radius(back_btn, 8, 0);
+    lv_obj_set_size(back_btn, 64, 64);
+    lv_obj_set_style_radius(back_btn, 12, 0);
     lv_obj_set_style_bg_color(back_btn, lv_palette_main(LV_PALETTE_GREY), 0);
     lv_obj_t *back_label = lv_label_create(back_btn);
     lv_label_set_text(back_label, LV_SYMBOL_LEFT);
@@ -533,7 +533,7 @@ static void build_gallery_screen()
 
     // Buttons row
     lv_obj_t *btn_row = lv_obj_create(nav_row);
-    lv_obj_set_size(btn_row, LV_PCT(100), 28);
+    lv_obj_set_size(btn_row, LV_PCT(100), 44);
     lv_obj_clear_flag(btn_row, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_opa(btn_row, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(btn_row, 0, 0);
@@ -542,14 +542,14 @@ static void build_gallery_screen()
     lv_obj_set_flex_align(btn_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     gallery_prev_btn = lv_btn_create(btn_row);
-    lv_obj_set_size(gallery_prev_btn, 80, 24);
+    lv_obj_set_size(gallery_prev_btn, 80, 40);
     lv_obj_t *prev_label = lv_label_create(gallery_prev_btn);
     lv_label_set_text(prev_label, "< Prev");
     lv_obj_center(prev_label);
     lv_obj_add_event_cb(gallery_prev_btn, gallery_prev_page_cb, LV_EVENT_CLICKED, NULL);
 
     gallery_next_btn = lv_btn_create(btn_row);
-    lv_obj_set_size(gallery_next_btn, 80, 24);
+    lv_obj_set_size(gallery_next_btn, 80, 40);
     lv_obj_t *next_label = lv_label_create(gallery_next_btn);
     lv_label_set_text(next_label, "Next >");
     lv_obj_center(next_label);
