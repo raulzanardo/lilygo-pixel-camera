@@ -184,17 +184,14 @@ static bool load_png_to_dsc(const char *path)
     File file = SD.open(path, FILE_READ);
     if (!file)
     {
-        Serial.printf("Gallery failed to open %s\n", path);
         return false;
     }
 
     const size_t size = file.size();
-    Serial.printf("Reading PNG file %s (%u bytes)\n", path, size);
 
     uint8_t *file_data = (uint8_t *)lodepng_malloc(size);
     if (!file_data)
     {
-        Serial.println("Failed to allocate file buffer");
         file.close();
         return false;
     }
@@ -204,7 +201,6 @@ static bool load_png_to_dsc(const char *path)
 
     if (read != size)
     {
-        Serial.println("Gallery read mismatch");
         lodepng_free(file_data);
         return false;
     }
@@ -218,7 +214,6 @@ static bool load_png_to_dsc(const char *path)
 
     if (error || decoded == nullptr)
     {
-        Serial.printf("PNG decode error %u: %s\n", error, lodepng_error_text(error));
         if (decoded)
         {
             lodepng_free(decoded);
@@ -226,7 +221,6 @@ static bool load_png_to_dsc(const char *path)
         return false;
     }
 
-    Serial.printf("PNG decoded: %u x %u\n", width, height);
 
     const size_t pixel_count = (size_t)width * height;
     gallery_img_buffer.resize(pixel_count * sizeof(lv_color_t));
@@ -254,7 +248,6 @@ static bool load_png_to_dsc(const char *path)
 
 static void show_photo_preview(const char *filename)
 {
-    Serial.printf("Opening photo %s\n", filename);
 
     if (!gallery_preview_screen)
     {
@@ -322,7 +315,6 @@ static void gallery_item_event_cb(lv_event_t *e)
         return;
     }
 
-    Serial.printf("Gallery item tapped: %s\n", name);
     show_photo_preview(name);
 }
 
@@ -428,20 +420,17 @@ static void delete_photo_cb(lv_event_t *e)
 
     if (gallery_current_photo_name.empty())
     {
-        Serial.println("No photo selected for deletion");
         return;
     }
 
     if (!gallery_ensure_sd_initialized())
     {
-        Serial.println("SD not ready, cannot delete photo");
         return;
     }
 
     std::string path = "/" + gallery_current_photo_name;
     if (SD.remove(path.c_str()))
     {
-        Serial.printf("Deleted photo %s\n", path.c_str());
         gallery_current_photo_name.clear();
         populate_gallery_list();
 
@@ -452,7 +441,6 @@ static void delete_photo_cb(lv_event_t *e)
     }
     else
     {
-        Serial.printf("Failed to delete photo %s\n", path.c_str());
         lv_label_set_text_fmt(gallery_preview_label, "Delete failed: %s", path.c_str());
     }
 }
@@ -464,7 +452,6 @@ static void build_gallery_screen()
         return;
     }
 
-    Serial.println("Creating gallery screen");
     gallery_screen = lv_obj_create(NULL);
     lv_obj_set_size(gallery_screen, 222, 480); // Changed from 480x222
     lv_obj_clear_flag(gallery_screen, LV_OBJ_FLAG_SCROLLABLE);
@@ -564,7 +551,6 @@ lv_obj_t *ui_get_gallery_screen(void)
 void ui_gallery_show(void)
 {
     build_gallery_screen();
-    Serial.println("Populating gallery list");
     gallery_set_loading(true);
     ui_pause_camera_timer();
     lv_scr_load_anim(gallery_screen, LV_SCR_LOAD_ANIM_MOVE_LEFT, 200, 0, false);
@@ -599,13 +585,11 @@ void ui_gallery_show_last_photo(void)
 {
     if (!refresh_gallery_cache() || gallery_photo_cache.empty())
     {
-        Serial.println("No photos found");
         return;
     }
 
     // Get the first photo (most recent)
     const String &last_photo = gallery_photo_cache[0];
-    Serial.printf("Opening last photo: %s\n", last_photo.c_str());
 
     ui_pause_camera_timer();
     show_photo_preview(last_photo.c_str());

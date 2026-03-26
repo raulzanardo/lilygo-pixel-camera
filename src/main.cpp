@@ -98,7 +98,6 @@ static void *png_file_open_cb(const char *filename)
     png_file_handle = SD.open(filename, "w+r");
     if (!png_file_handle)
     {
-        Serial.printf("Failed to open %s for PNG write\n", filename);
         return nullptr;
     }
     return &png_file_handle;
@@ -157,7 +156,6 @@ static bool ensure_sd_initialized()
 
     if (!SD.begin(BOARD_SD_CS))
     {
-        Serial.println("Failed to mount SD card");
         return false;
     }
 
@@ -475,7 +473,6 @@ static bool encode_rgb565_png(const char *path, const uint16_t *pixels, uint16_t
     int rc = png_encoder.open(path, png_file_open_cb, png_file_close_cb, png_file_read_cb, png_file_write_cb, png_file_seek_cb);
     if (rc != PNG_SUCCESS)
     {
-        Serial.println("PNG open failed");
         return false;
     }
 
@@ -486,7 +483,6 @@ static bool encode_rgb565_png(const char *path, const uint16_t *pixels, uint16_t
     rc = png_encoder.encodeBegin(scaled_width, scaled_height, PNG_PIXEL_TRUECOLOR, 24, nullptr, 3);
     if (rc != PNG_SUCCESS)
     {
-        Serial.printf("encodeBegin failed: %d\n", rc);
         png_encoder.close();
         return false;
     }
@@ -509,7 +505,6 @@ static bool encode_rgb565_png(const char *path, const uint16_t *pixels, uint16_t
         rc = png_encoder.addRGB565Line(scaled_line.data(), temp_line.data(), true);
         if (rc != PNG_SUCCESS)
         {
-            Serial.printf("addLine failed at row %u: %d\n", y * 2, rc);
             png_encoder.close();
             return false;
         }
@@ -517,7 +512,6 @@ static bool encode_rgb565_png(const char *path, const uint16_t *pixels, uint16_t
         rc = png_encoder.addRGB565Line(scaled_line.data(), temp_line.data(), true);
         if (rc != PNG_SUCCESS)
         {
-            Serial.printf("addLine failed at row %u: %d\n", y * 2 + 1, rc);
             png_encoder.close();
             return false;
         }
@@ -526,7 +520,6 @@ static bool encode_rgb565_png(const char *path, const uint16_t *pixels, uint16_t
     int32_t written = png_encoder.close();
     if (written <= 0)
     {
-        Serial.println("PNG close failed");
         return false;
     }
 
@@ -549,7 +542,6 @@ static bool save_frame_as_png(camera_fb_t *frame)
     uint16_t out_h = frame->height;
     if (!rotate_and_filter_frame(frame, processed_pixels, out_w, out_h))
     {
-        Serial.println("Failed to process frame before saving");
         return false;
     }
 
@@ -561,7 +553,6 @@ static bool save_frame_as_png(camera_fb_t *frame)
     bool ok = encode_rgb565_png(path, processed_pixels.data(), out_w, out_h);
     if (ok)
     {
-        Serial.printf("Saved photo to %s (%u x %u)\n", path, out_w, out_h);
         photo_prefs.putUInt(PHOTO_PREF_KEY, current_index);
         photo_counter = current_index + 1;
         ui_show_photo_overlay("Photo saved");
@@ -573,14 +564,12 @@ static bool save_screenshot_as_bmp(const char *filename, lv_img_dsc_t *img_dsc, 
 {
     if (!ensure_sd_initialized())
     {
-        Serial.println("SD card not ready");
         return false;
     }
 
     File file = SD.open(filename, FILE_WRITE);
     if (!file)
     {
-        Serial.printf("Failed to open file for writing: %s\n", filename);
         return false;
     }
 
@@ -614,7 +603,6 @@ static bool save_screenshot_as_bmp(const char *filename, lv_img_dsc_t *img_dsc, 
     if (!row)
     {
         file.close();
-        Serial.println("Failed to allocate row buffer");
         return false;
     }
 
@@ -636,7 +624,6 @@ static bool save_screenshot_as_bmp(const char *filename, lv_img_dsc_t *img_dsc, 
 
     free(row);
     file.close();
-    Serial.printf("Screenshot saved: %s\n", filename);
     return true;
 }
 
@@ -644,7 +631,6 @@ static void capture_screenshot()
 {
     if (!ensure_sd_initialized())
     {
-        Serial.println("SD card not available for screenshot");
         ui_show_photo_overlay("SD card error");
         return;
     }
@@ -652,12 +638,10 @@ static void capture_screenshot()
     lv_obj_t *scr = lv_scr_act();
     if (!scr)
     {
-        Serial.println("Failed to get active screen");
         return;
     }
 
     uint32_t buf_size = lv_snapshot_buf_size_needed(scr, LV_IMG_CF_TRUE_COLOR);
-    Serial.printf("Screenshot buffer size needed: %lu bytes\n", buf_size);
 
     void *screenshot_buf = heap_caps_malloc(buf_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!screenshot_buf)
@@ -667,7 +651,6 @@ static void capture_screenshot()
 
     if (!screenshot_buf)
     {
-        Serial.println("Failed to allocate screenshot buffer");
         ui_show_photo_overlay("Memory error");
         return;
     }
@@ -677,7 +660,6 @@ static void capture_screenshot()
 
     if (res != LV_RES_OK)
     {
-        Serial.println("Screenshot capture failed");
         heap_caps_free(screenshot_buf);
         ui_show_photo_overlay("Capture failed");
         return;
@@ -729,7 +711,6 @@ static void capture_photo_with_flash()
     camera_fb_t *frame = esp_camera_fb_get();
     if (!frame)
     {
-        Serial.println("Failed to capture frame");
         if (led_flash_active)
         {
             ledcWrite(LEDC_WHITE_CH, 0);
@@ -741,7 +722,6 @@ static void capture_photo_with_flash()
 
     if (!save_frame_as_png(frame))
     {
-        Serial.println("Failed to save captured frame");
     }
 
     esp_camera_fb_return(frame);
@@ -807,7 +787,6 @@ void camera_init(void)
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK)
     {
-        Serial.println("camera init error!");
     }
     sensor_t *s = esp_camera_sensor_get();
 
@@ -853,7 +832,6 @@ void camera_init(void)
         }
         else
         {
-            Serial.println("Camera ID error!");
         }
     }
 
@@ -918,7 +896,6 @@ static bool ensure_pmu_ready()
 
 void setup()
 {
-    Serial.begin(115200);
 
     pinMode(BOARD_TFT_BL, OUTPUT);
     digitalWrite(BOARD_TFT_BL, LOW); // Backlight OFF
@@ -926,8 +903,6 @@ void setup()
     String LVGL_Arduino = "Hello Arduino! ";
     LVGL_Arduino += String('V') + lv_version_major() + "." + lv_version_minor() + "." + lv_version_patch();
 
-    Serial.println(LVGL_Arduino);
-    Serial.println("I am LVGL_Arduino");
 
     camera_init();
     init_user_buttons();
@@ -971,7 +946,6 @@ void setup()
         photo_counter = last_saved + 1;
     }
 
-    Serial.println("Setup done");
 }
 
 void loop()
