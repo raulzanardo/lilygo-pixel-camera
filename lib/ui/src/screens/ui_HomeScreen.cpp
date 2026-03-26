@@ -96,6 +96,7 @@ static const char *UI_PREF_AEC_VALUE_KEY = "aec_value";
 static const char *UI_PREF_DITHER_KEY = "dither_type";
 static const char *UI_PREF_PIXEL_SIZE_KEY = "pixel_size";
 static const char *UI_PREF_AUTO_ADJUST_KEY = "auto_adjust";
+static const char *UI_PREF_AUTO_LEVELS_KEY = "auto_levels";
 static const char *UI_PREF_ZOOM_LEVEL_KEY = "zoom_level";
 static const char *UI_PREF_SCREENSHOT_KEY = "screenshot_mode";
 
@@ -446,7 +447,7 @@ static void apply_selected_filter(camera_fb_t *frame)
     {
         int palette_size = 0;
         const uint32_t *palette = get_current_palette(palette_size);
-        applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, current_dithering, current_pixel_size, 2);
+        applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, current_dithering, current_pixel_size, 2, ui_get_auto_levels_enabled());
     }
     break;
     case CAMERA_FILTER_EDGE:
@@ -671,6 +672,26 @@ void ui_set_auto_adjust_enabled(bool enabled)
     if (ui_prefs_ready)
     {
         ui_prefs.putBool(UI_PREF_AUTO_ADJUST_KEY, enabled);
+    }
+}
+
+bool ui_get_auto_levels_enabled(void)
+{
+    Preferences prefs;
+    if (prefs.begin(UI_PREF_NAMESPACE, true))
+    {
+        bool val = prefs.getBool(UI_PREF_AUTO_LEVELS_KEY, false);
+        prefs.end();
+        return val;
+    }
+    return false;
+}
+
+void ui_set_auto_levels_enabled(bool enabled)
+{
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putBool(UI_PREF_AUTO_LEVELS_KEY, enabled);
     }
 }
 

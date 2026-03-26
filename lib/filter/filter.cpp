@@ -512,7 +512,7 @@ int colorDistance(uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t g2, ui
  * @param pixelSize Pixelation size (1 = no pixelation)
  * @param bayerSize Bayer matrix size (2, 4, or 8) - only used when dithering = 2
  */
-void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint32_t *palette, int paletteSize, int dithering, int pixelSize, int bayerSize)
+void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint32_t *palette, int paletteSize, int dithering, int pixelSize, int bayerSize, bool autoLevels)
 {
 
     if (!psramFound())
@@ -619,6 +619,33 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
         pixelSize = 1; // internal processing uses native resolution
     }
 
+    // Auto-levels: scan workingBuffer to find per-channel min/max, then stretch to 0-255
+    uint8_t alMinR = 255, alMaxR = 0, alMinG = 255, alMaxG = 0, alMinB = 255, alMaxB = 0;
+    if (autoLevels)
+    {
+        for (int i = 0; i < workWidth * workHeight; i++)
+        {
+            uint16_t px = workingBuffer[i];
+            if (swapBytes)
+                px = ((px << 8) | (px >> 8));
+            uint8_t r = ((px >> 11) & 0x1F) << 3;
+            uint8_t g = ((px >> 5) & 0x3F) << 2;
+            uint8_t b = (px & 0x1F) << 3;
+            if (r < alMinR)
+                alMinR = r;
+            if (r > alMaxR)
+                alMaxR = r;
+            if (g < alMinG)
+                alMinG = g;
+            if (g > alMaxG)
+                alMaxG = g;
+            if (b < alMinB)
+                alMinB = b;
+            if (b > alMaxB)
+                alMaxB = b;
+        }
+    }
+
     // Allocate memory using PSRAM for buffers
     uint16_t *outputBuffer = (uint16_t *)ps_malloc(workWidth * workHeight * sizeof(uint16_t));
     float *redErrorBuffer = nullptr;
@@ -672,6 +699,16 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
             redErrorBuffer[i] = ((pixel >> 11) & 0x1F) << 3;  // 5 bits to 8 bits
             greenErrorBuffer[i] = ((pixel >> 5) & 0x3F) << 2; // 6 bits to 8 bits
             blueErrorBuffer[i] = (pixel & 0x1F) << 3;         // 5 bits to 8 bits
+
+            if (autoLevels)
+            {
+                if (alMaxR > alMinR)
+                    redErrorBuffer[i] = (redErrorBuffer[i] - alMinR) * 255.0f / (alMaxR - alMinR);
+                if (alMaxG > alMinG)
+                    greenErrorBuffer[i] = (greenErrorBuffer[i] - alMinG) * 255.0f / (alMaxG - alMinG);
+                if (alMaxB > alMinB)
+                    blueErrorBuffer[i] = (blueErrorBuffer[i] - alMinB) * 255.0f / (alMaxB - alMinB);
+            }
         }
     }
 
@@ -729,6 +766,16 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
                 r = ((pixel >> 11) & 0x1F) << 3; // 5 bits to 8 bits
                 g = ((pixel >> 5) & 0x3F) << 2;  // 6 bits to 8 bits
                 b = (pixel & 0x1F) << 3;         // 5 bits to 8 bits
+
+                if (autoLevels)
+                {
+                    if (alMaxR > alMinR)
+                        r = constrain((int)((r - alMinR) * 255 / (alMaxR - alMinR)), 0, 255);
+                    if (alMaxG > alMinG)
+                        g = constrain((int)((g - alMinG) * 255 / (alMaxG - alMinG)), 0, 255);
+                    if (alMaxB > alMinB)
+                        b = constrain((int)((b - alMinB) * 255 / (alMaxB - alMinB)), 0, 255);
+                }
             }
 
             // Apply Bayer threshold if using Bayer dithering

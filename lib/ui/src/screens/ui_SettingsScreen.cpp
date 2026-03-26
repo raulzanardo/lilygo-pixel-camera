@@ -10,12 +10,28 @@ static lv_obj_t *ui_settings_screen = NULL;
 static lv_obj_t *ui_settings_flash_switch = NULL;
 static lv_obj_t *ui_settings_storage_switch = NULL;
 static lv_obj_t *ui_settings_auto_adjust_switch = NULL;
+static lv_obj_t *ui_settings_auto_levels_switch = NULL;
 static lv_obj_t *ui_settings_screenshot_switch = NULL;
 static lv_obj_t *ui_settings_back_btn = NULL;
 
 // Forward declaration
 extern void ui_event_FlashSwitch(lv_event_t *e);
 extern bool camera_led_open_flag;
+
+static void ui_settings_auto_levels_event(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+    {
+        return;
+    }
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+    {
+        return;
+    }
+    bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+    ui_set_auto_levels_enabled(enabled);
+}
 
 static void ui_settings_auto_adjust_event(lv_event_t *e)
 {
@@ -168,6 +184,30 @@ static void build_settings_screen()
     }
     lv_obj_set_size(ui_settings_auto_adjust_switch, 60, 40);
     lv_obj_add_event_cb(ui_settings_auto_adjust_switch, ui_settings_auto_adjust_event, LV_EVENT_ALL, NULL);
+
+    // auto levels toggle (palette brightness normalization)
+    lv_obj_t *auto_levels_row = lv_obj_create(ui_settings_screen);
+    lv_obj_set_width(auto_levels_row, LV_PCT(100));
+    lv_obj_set_height(auto_levels_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(auto_levels_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(auto_levels_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(auto_levels_row, 0, 0);
+    lv_obj_set_style_pad_all(auto_levels_row, 0, 0);
+    lv_obj_set_style_pad_row(auto_levels_row, 8, 0);
+    lv_obj_set_style_pad_column(auto_levels_row, 8, 0);
+    lv_obj_set_flex_flow(auto_levels_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(auto_levels_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *auto_levels_label = lv_label_create(auto_levels_row);
+    lv_label_set_text(auto_levels_label, "Auto Dithering");
+
+    ui_settings_auto_levels_switch = lv_switch_create(auto_levels_row);
+    if (ui_get_auto_levels_enabled())
+    {
+        lv_obj_add_state(ui_settings_auto_levels_switch, LV_STATE_CHECKED);
+    }
+    lv_obj_set_size(ui_settings_auto_levels_switch, 60, 40);
+    lv_obj_add_event_cb(ui_settings_auto_levels_switch, ui_settings_auto_levels_event, LV_EVENT_ALL, NULL);
 
     // screenshot mode toggle
     lv_obj_t *screenshot_row = lv_obj_create(ui_settings_screen);

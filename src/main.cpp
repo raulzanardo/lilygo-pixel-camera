@@ -446,7 +446,7 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
             palette = PALETTE_CYBERPUNK;
             palette_size = PALETTE_CYBERPUNK_SIZE;
         }
-        applyColorPalette(working.data(), out_w, out_h, palette, palette_size, ui_get_dither_type(), ui_get_pixel_size(), 2);
+        applyColorPalette(working.data(), out_w, out_h, palette, palette_size, ui_get_dither_type(), ui_get_pixel_size(), 2, ui_get_auto_levels_enabled());
     }
     break;
     case 3:
@@ -903,7 +903,6 @@ void setup()
     String LVGL_Arduino = "Hello Arduino! ";
     LVGL_Arduino += String('V') + lv_version_major() + "." + lv_version_minor() + "." + lv_version_patch();
 
-
     camera_init();
     init_user_buttons();
 
@@ -945,7 +944,6 @@ void setup()
         uint32_t last_saved = photo_prefs.getUInt(PHOTO_PREF_KEY, 0);
         photo_counter = last_saved + 1;
     }
-
 }
 
 void loop()
