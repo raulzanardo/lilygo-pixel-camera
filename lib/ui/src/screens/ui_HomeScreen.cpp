@@ -465,6 +465,50 @@ static void apply_selected_filter(camera_fb_t *frame)
     }
 }
 
+static void ui_update_filter_dropdowns()
+{
+    if (!ui_PaletteDropdown || !ui_DitherDropdown || !ui_PixelSizeDropdown)
+        return;
+
+    bool showPalette = false;
+    bool showDither = false;
+    bool showPixelSize = false;
+
+    switch (current_filter)
+    {
+    case CAMERA_FILTER_PIXELATE:
+        showPixelSize = true;
+        break;
+    case CAMERA_FILTER_DITHER:
+        showPalette = true;
+        showDither = true;
+        showPixelSize = true;
+        break;
+    case CAMERA_FILTER_CRT:
+        showPixelSize = true;
+        break;
+    case CAMERA_FILTER_NONE:
+    case CAMERA_FILTER_EDGE:
+    default:
+        break;
+    }
+
+    if (showPalette)
+        lv_obj_clear_flag(ui_PaletteDropdown, LV_OBJ_FLAG_HIDDEN);
+    else
+        lv_obj_add_flag(ui_PaletteDropdown, LV_OBJ_FLAG_HIDDEN);
+
+    if (showDither)
+        lv_obj_clear_flag(ui_DitherDropdown, LV_OBJ_FLAG_HIDDEN);
+    else
+        lv_obj_add_flag(ui_DitherDropdown, LV_OBJ_FLAG_HIDDEN);
+
+    if (showPixelSize)
+        lv_obj_clear_flag(ui_PixelSizeDropdown, LV_OBJ_FLAG_HIDDEN);
+    else
+        lv_obj_add_flag(ui_PixelSizeDropdown, LV_OBJ_FLAG_HIDDEN);
+}
+
 void ui_set_filter_mode(int mode)
 {
     if (mode < CAMERA_FILTER_NONE || mode > CAMERA_FILTER_CRT)
@@ -476,6 +520,7 @@ void ui_set_filter_mode(int mode)
     {
         ui_prefs.putInt(UI_PREF_FILTER_KEY, current_filter);
     }
+    ui_update_filter_dropdowns();
 }
 
 int ui_get_filter_mode(void)
@@ -1293,6 +1338,9 @@ void ui_HomeScreen_screen_init(void)
         "4x4\n"
         "8x8");
     lv_dropdown_set_selected(ui_PixelSizeDropdown, pixel_size_to_index(current_pixel_size));
+
+    // Apply initial dropdown visibility based on the restored/default filter
+    ui_update_filter_dropdowns();
 
     /* Camera settings column (hidden by default) */
     ui_camera_settings_column = lv_obj_create(ui_bottom_panel);
