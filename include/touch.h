@@ -22,6 +22,13 @@ int16_t touch_last_x = 0, touch_last_y = 0;
 #include <TouchLib.h>
 TouchLib touch(Wire, BOARD_I2C_SDA, BOARD_I2C_SCL, L58_SLAVE_ADDRESS);
 
+volatile bool touch_irq_triggered = false;
+
+void IRAM_ATTR touch_isr()
+{
+    touch_irq_triggered = true;
+}
+
 void touch_init(int16_t w, int16_t h, uint8_t r)
 {
     touch_max_x = w - 1;
@@ -71,12 +78,15 @@ void touch_init(int16_t w, int16_t h, uint8_t r)
 #endif
     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL);
     touch.init();
+
+    // Set up INT pin interrupt — CST328 pulls it LOW on any touch event
+    pinMode(BOARD_SENSOR_IRQ, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(BOARD_SENSOR_IRQ), touch_isr, FALLING);
 }
 
 bool touch_has_signal()
 {
-    // TODO: implement TOUCH_INT
-    return true;
+    return touch_irq_triggered;
 }
 
 void translate_touch_raw()
@@ -96,6 +106,17 @@ void translate_touch_raw()
 
 bool touch_touched()
 {
+    // While no interrupt has fired, persist the last known state so LVGL
+    // does not see a spurious release between the CST328's periodic reports.
+    static bool last_state = false;
+
+    if (!touch_irq_triggered)
+    {
+        return last_state;
+    }
+
+    touch_irq_triggered = false;
+
     if (touch.read())
     {
         TP_Point t = touch.getPoint(0);
@@ -106,8 +127,11 @@ bool touch_touched()
         touch_last_y = touch_raw_y;
 
         translate_touch_raw();
+        last_state = true;
         return true;
     }
+
+    last_state = false;
     return false;
 }
 
