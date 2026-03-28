@@ -17,46 +17,44 @@
 void applyDithering(camera_fb_t *cameraFb, int redBits, int greenBits, int blueBits, bool grayscale, int algorithm, int bayerSize)
 {
     if (!psramFound() || !cameraFb)
-    {
         return;
-    }
 
     int width = cameraFb->width;
     int height = cameraFb->height;
     uint16_t *frameBuffer = (uint16_t *)cameraFb->buf;
 
-    // If grayscale mode is enabled, use the minimum bit depth for all channels
     if (grayscale)
     {
         int minBits = min(min(redBits, greenBits), blueBits);
         redBits = greenBits = blueBits = minBits;
     }
 
-    // Calculate number of levels for each channel
-    int redLevels = 1 << redBits;
-    int greenLevels = 1 << greenBits;
-    int blueLevels = 1 << blueBits;
+    int redMax = (1 << redBits) - 1;
+    int greenMax = (1 << greenBits) - 1;
+    int blueMax = (1 << blueBits) - 1;
 
-    int redMax = redLevels - 1;
-    int greenMax = greenLevels - 1;
-    int blueMax = blueLevels - 1;
+    // Precompute per-channel quantization LUTs (256 entries each).
+    // Maps any 8-bit value to its nearest quantized output at the target bit depth.
+    // Replaces per-pixel float division + round() calls with a single array lookup.
+    uint8_t rQuantLUT[256], gQuantLUT[256], bQuantLUT[256];
+    for (int v = 0; v < 256; v++)
+    {
+        rQuantLUT[v] = (uint8_t)(((v * redMax + 127) / 255) * 255 / redMax);
+        gQuantLUT[v] = (uint8_t)(((v * greenMax + 127) / 255) * 255 / greenMax);
+        bQuantLUT[v] = (uint8_t)(((v * blueMax + 127) / 255) * 255 / blueMax);
+    }
 
-    float redScale = 255.0f / redMax;
-    float greenScale = 255.0f / greenMax;
-    float blueScale = 255.0f / blueMax;
-
-    // GC0308 outputs RGB565 little-endian frames, so no byte swapping is required.
+    // GC0308 outputs RGB565 little-endian frames, so byte-swap on every read/write.
     const bool swapBytes = true;
+
     const int bayer2x2[2][2] = {
         {0, 2},
         {3, 1}};
-
     const int bayer4x4[4][4] = {
         {0, 8, 2, 10},
         {12, 4, 14, 6},
         {3, 11, 1, 9},
         {15, 7, 13, 5}};
-
     const int bayer8x8[8][8] = {
         {0, 32, 8, 40, 2, 34, 10, 42},
         {48, 16, 56, 24, 50, 18, 58, 26},
@@ -67,116 +65,51 @@ void applyDithering(camera_fb_t *cameraFb, int redBits, int greenBits, int blueB
         {15, 47, 7, 39, 13, 45, 5, 37},
         {63, 31, 55, 23, 61, 29, 53, 21}};
 
-    // Clamp bayerSize to valid values
     if (bayerSize != 2 && bayerSize != 4 && bayerSize != 8)
-    {
-        bayerSize = 4; // Default to 4x4
-    }
-
+        bayerSize = 4;
     int bayerDivisor = (bayerSize == 2) ? 4 : (bayerSize == 4) ? 16
                                                                : 64;
 
-    // Allocate memory using PSRAM
-    uint8_t *redBuffer = (uint8_t *)ps_malloc(width * height * sizeof(uint8_t));
-    uint8_t *greenBuffer = (uint8_t *)ps_malloc(width * height * sizeof(uint8_t));
-    uint8_t *blueBuffer = (uint8_t *)ps_malloc(width * height * sizeof(uint8_t));
-    float *redErrorBuffer = nullptr;
-    float *greenErrorBuffer = nullptr;
-    float *blueErrorBuffer = nullptr;
-    uint16_t *outputBuffer = (uint16_t *)ps_malloc(width * height * sizeof(uint16_t));
-
-    // Only allocate error buffers for Floyd-Steinberg
     if (algorithm == 0)
     {
-        redErrorBuffer = (float *)ps_malloc(width * height * sizeof(float));
-        greenErrorBuffer = (float *)ps_malloc(width * height * sizeof(float));
-        blueErrorBuffer = (float *)ps_malloc(width * height * sizeof(float));
+        // Floyd-Steinberg: int16_t error buffers replace 3× float buffers + 3× uint8 channel
+        // buffers + 1× uint16 output buffer — saving ~11 bytes/pixel for HQVGA (~464 KB).
+        // Error values stay well within int16_t range because pixel values are clamped to
+        // [0, 255] before each quantization step.
+        int16_t *redErr = (int16_t *)ps_malloc(width * height * sizeof(int16_t));
+        int16_t *greenErr = (int16_t *)ps_malloc(width * height * sizeof(int16_t));
+        int16_t *blueErr = (int16_t *)ps_malloc(width * height * sizeof(int16_t));
 
-        if (!redErrorBuffer || !greenErrorBuffer || !blueErrorBuffer)
+        if (!redErr || !greenErr || !blueErr)
         {
-            if (redBuffer)
-                free(redBuffer);
-            if (greenBuffer)
-                free(greenBuffer);
-            if (blueBuffer)
-                free(blueBuffer);
-            if (redErrorBuffer)
-                free(redErrorBuffer);
-            if (greenErrorBuffer)
-                free(greenErrorBuffer);
-            if (blueErrorBuffer)
-                free(blueErrorBuffer);
-            if (outputBuffer)
-                free(outputBuffer);
+            free(redErr);
+            free(greenErr);
+            free(blueErr);
             return;
         }
-    }
 
-    if (!redBuffer || !greenBuffer || !blueBuffer || !outputBuffer)
-    {
-        // Clean up if any allocation failed
-        if (redBuffer)
-            free(redBuffer);
-        if (greenBuffer)
-            free(greenBuffer);
-        if (blueBuffer)
-            free(blueBuffer);
-        if (redErrorBuffer)
-            free(redErrorBuffer);
-        if (greenErrorBuffer)
-            free(greenErrorBuffer);
-        if (blueErrorBuffer)
-            free(blueErrorBuffer);
-        if (outputBuffer)
-            free(outputBuffer);
-        return;
-    }
-
-    // Extract RGB components from the image
-    for (int i = 0; i < width * height; i++)
-    {
-        uint16_t pixel = frameBuffer[i];
-
-        if (swapBytes)
+        // Initialize error buffers from frame pixels
+        for (int i = 0; i < width * height; i++)
         {
-            pixel = ((pixel << 8) | (pixel >> 8));
+            uint16_t px = frameBuffer[i];
+            if (swapBytes)
+                px = (uint16_t)((px << 8) | (px >> 8));
+            int16_t r = (int16_t)(((px >> 11) & 0x1F) << 3);
+            int16_t g = (int16_t)(((px >> 5) & 0x3F) << 2);
+            int16_t b = (int16_t)((px & 0x1F) << 3);
+            if (grayscale)
+            {
+                int16_t gray = (int16_t)((r * 30 + g * 59 + b * 11) / 100);
+                r = g = b = gray;
+            }
+            redErr[i] = r;
+            greenErr[i] = g;
+            blueErr[i] = b;
         }
 
-        // Extract RGB components from RGB565 format
-        uint8_t r = ((pixel >> 11) & 0x1F) << 3; // 5 bits to 8 bits
-        uint8_t g = ((pixel >> 5) & 0x3F) << 2;  // 6 bits to 8 bits
-        uint8_t b = (pixel & 0x1F) << 3;         // 5 bits to 8 bits
-
-        if (grayscale)
-        {
-            // Convert to grayscale using standard luminance formula
-            uint8_t gray = (r * 30 + g * 59 + b * 11) / 100;
-            r = g = b = gray;
-        }
-
-        redBuffer[i] = r;
-        greenBuffer[i] = g;
-        blueBuffer[i] = b;
-
-        // Initialize error buffers only for Floyd-Steinberg
-        if (algorithm == 0)
-        {
-            redErrorBuffer[i] = r;
-            greenErrorBuffer[i] = g;
-            blueErrorBuffer[i] = b;
-        }
-    }
-
-    if (algorithm == 0)
-    {
-        // Floyd-Steinberg dithering
-        // Precalculate error distribution factors
-        const float f7_16 = 7.0f / 16.0f;
-        const float f3_16 = 3.0f / 16.0f;
-        const float f5_16 = 5.0f / 16.0f;
-        const float f1_16 = 1.0f / 16.0f;
-
-        // Apply Floyd-Steinberg dithering with serpentine scanning
+        // Serpentine Floyd-Steinberg scan with fixed-point integer error distribution.
+        // Fractions 7/16, 3/16, 5/16, 1/16 computed via bit-shift; residual absorbed
+        // by the 1/16 neighbor to prevent cumulative drift.
         for (int y = 0; y < height; y++)
         {
             bool leftToRight = (y % 2 == 0);
@@ -188,191 +121,143 @@ void applyDithering(camera_fb_t *cameraFb, int redBits, int greenBits, int blueB
             {
                 int idx = y * width + x;
 
-                // Get current pixel with accumulated error for each channel
-                float oldR = redErrorBuffer[idx];
-                float oldG = greenErrorBuffer[idx];
-                float oldB = blueErrorBuffer[idx];
+                int16_t oldR = (int16_t)constrain((int)redErr[idx], 0, 255);
+                int16_t oldG = (int16_t)constrain((int)greenErr[idx], 0, 255);
+                int16_t oldB = (int16_t)constrain((int)blueErr[idx], 0, 255);
 
-                // Quantize to the target bit depth
-                uint8_t newR = round(round(oldR / redScale) * redScale);
-                uint8_t newG = round(round(oldG / greenScale) * greenScale);
-                uint8_t newB = round(round(oldB / blueScale) * blueScale);
+                int16_t newR = (int16_t)rQuantLUT[oldR];
+                int16_t newG = (int16_t)gQuantLUT[oldG];
+                int16_t newB = (int16_t)bQuantLUT[oldB];
 
-                // Calculate quantization error
-                float errorR = oldR - newR;
-                float errorG = oldG - newG;
-                float errorB = oldB - newB;
+                // Write quantized pixel directly to frameBuffer — no outputBuffer needed
+                uint16_t color = ((uint16_t)((uint8_t)newR >> 3) << 11) |
+                                 ((uint16_t)((uint8_t)newG >> 2) << 5) |
+                                 (uint16_t)((uint8_t)newB >> 3);
+                if (swapBytes)
+                    color = (uint16_t)((color << 8) | (color >> 8));
+                frameBuffer[idx] = color;
 
-                // Store the quantized value
-                redBuffer[idx] = newR;
-                greenBuffer[idx] = newG;
-                blueBuffer[idx] = newB;
+                int16_t eR = (int16_t)(oldR - newR);
+                int16_t eG = (int16_t)(oldG - newG);
+                int16_t eB = (int16_t)(oldB - newB);
 
-                // Distribute error to neighboring pixels
+                int16_t eR7 = (int16_t)((eR * 7) >> 4), eR3 = (int16_t)((eR * 3) >> 4),
+                        eR5 = (int16_t)((eR * 5) >> 4), eR1 = (int16_t)(eR - eR7 - eR3 - eR5);
+                int16_t eG7 = (int16_t)((eG * 7) >> 4), eG3 = (int16_t)((eG * 3) >> 4),
+                        eG5 = (int16_t)((eG * 5) >> 4), eG1 = (int16_t)(eG - eG7 - eG3 - eG5);
+                int16_t eB7 = (int16_t)((eB * 7) >> 4), eB3 = (int16_t)((eB * 3) >> 4),
+                        eB5 = (int16_t)((eB * 5) >> 4), eB1 = (int16_t)(eB - eB7 - eB3 - eB5);
+
                 if (leftToRight)
                 {
-                    // Left to right pattern
                     if (x + 1 < width)
                     {
-                        redErrorBuffer[idx + 1] += errorR * f7_16;
-                        greenErrorBuffer[idx + 1] += errorG * f7_16;
-                        blueErrorBuffer[idx + 1] += errorB * f7_16;
+                        redErr[idx + 1] += eR7;
+                        greenErr[idx + 1] += eG7;
+                        blueErr[idx + 1] += eB7;
                     }
-
                     if (y + 1 < height)
                     {
-                        int nextRow = (y + 1) * width;
-
+                        int nr = (y + 1) * width;
                         if (x - 1 >= 0)
                         {
-                            redErrorBuffer[nextRow + x - 1] += errorR * f3_16;
-                            greenErrorBuffer[nextRow + x - 1] += errorG * f3_16;
-                            blueErrorBuffer[nextRow + x - 1] += errorB * f3_16;
+                            redErr[nr + x - 1] += eR3;
+                            greenErr[nr + x - 1] += eG3;
+                            blueErr[nr + x - 1] += eB3;
                         }
-
-                        redErrorBuffer[nextRow + x] += errorR * f5_16;
-                        greenErrorBuffer[nextRow + x] += errorG * f5_16;
-                        blueErrorBuffer[nextRow + x] += errorB * f5_16;
-
+                        redErr[nr + x] += eR5;
+                        greenErr[nr + x] += eG5;
+                        blueErr[nr + x] += eB5;
                         if (x + 1 < width)
                         {
-                            redErrorBuffer[nextRow + x + 1] += errorR * f1_16;
-                            greenErrorBuffer[nextRow + x + 1] += errorG * f1_16;
-                            blueErrorBuffer[nextRow + x + 1] += errorB * f1_16;
+                            redErr[nr + x + 1] += eR1;
+                            greenErr[nr + x + 1] += eG1;
+                            blueErr[nr + x + 1] += eB1;
                         }
                     }
                 }
                 else
                 {
-                    // Right to left pattern
                     if (x - 1 >= 0)
                     {
-                        redErrorBuffer[idx - 1] += errorR * f7_16;
-                        greenErrorBuffer[idx - 1] += errorG * f7_16;
-                        blueErrorBuffer[idx - 1] += errorB * f7_16;
+                        redErr[idx - 1] += eR7;
+                        greenErr[idx - 1] += eG7;
+                        blueErr[idx - 1] += eB7;
                     }
-
                     if (y + 1 < height)
                     {
-                        int nextRow = (y + 1) * width;
-
+                        int nr = (y + 1) * width;
                         if (x + 1 < width)
                         {
-                            redErrorBuffer[nextRow + x + 1] += errorR * f3_16;
-                            greenErrorBuffer[nextRow + x + 1] += errorG * f3_16;
-                            blueErrorBuffer[nextRow + x + 1] += errorB * f3_16;
+                            redErr[nr + x + 1] += eR3;
+                            greenErr[nr + x + 1] += eG3;
+                            blueErr[nr + x + 1] += eB3;
                         }
-
-                        redErrorBuffer[nextRow + x] += errorR * f5_16;
-                        greenErrorBuffer[nextRow + x] += errorG * f5_16;
-                        blueErrorBuffer[nextRow + x] += errorB * f5_16;
-
+                        redErr[nr + x] += eR5;
+                        greenErr[nr + x] += eG5;
+                        blueErr[nr + x] += eB5;
                         if (x - 1 >= 0)
                         {
-                            redErrorBuffer[nextRow + x - 1] += errorR * f1_16;
-                            greenErrorBuffer[nextRow + x - 1] += errorG * f1_16;
-                            blueErrorBuffer[nextRow + x - 1] += errorB * f1_16;
+                            redErr[nr + x - 1] += eR1;
+                            greenErr[nr + x - 1] += eG1;
+                            blueErr[nr + x - 1] += eB1;
                         }
                     }
                 }
             }
         }
+
+        free(redErr);
+        free(greenErr);
+        free(blueErr);
     }
     else if (algorithm == 1)
     {
-        // Bayer dithering
+        // Bayer: precompute integer offset table once (same approach as applyColorPalette).
+        // Eliminates per-pixel float threshold calculation and branch-on-matrix-size.
+        // Offset = (bv * 255 / divisor) - 127, centering the range around 0.
+        int bayerIntOffsets[8][8] = {};
+        for (int by = 0; by < bayerSize; by++)
+            for (int bx = 0; bx < bayerSize; bx++)
+            {
+                int bv = (bayerSize == 2)   ? bayer2x2[by][bx]
+                         : (bayerSize == 4) ? bayer4x4[by][bx]
+                                            : bayer8x8[by][bx];
+                bayerIntOffsets[by][bx] = (bv * 255 / bayerDivisor) - 127;
+            }
+
+        // Process in-place directly on frameBuffer — no output buffer or channel buffers needed
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
                 int idx = y * width + x;
-
-                // Get current pixel color
-                float oldR = redBuffer[idx];
-                float oldG = greenBuffer[idx];
-                float oldB = blueBuffer[idx];
-
-                // Get Bayer threshold value based on matrix size
-                int bayerX = x % bayerSize;
-                int bayerY = y % bayerSize;
-                int bayerValue;
-
-                if (bayerSize == 2)
+                uint16_t px = frameBuffer[idx];
+                if (swapBytes)
+                    px = (uint16_t)((px << 8) | (px >> 8));
+                int r = ((px >> 11) & 0x1F) << 3;
+                int g = ((px >> 5) & 0x3F) << 2;
+                int b = (px & 0x1F) << 3;
+                if (grayscale)
                 {
-                    bayerValue = bayer2x2[bayerY][bayerX];
-                }
-                else if (bayerSize == 4)
-                {
-                    bayerValue = bayer4x4[bayerY][bayerX];
-                }
-                else // bayerSize == 8
-                {
-                    bayerValue = bayer8x8[bayerY][bayerX];
+                    int gray = (r * 30 + g * 59 + b * 11) / 100;
+                    r = g = b = gray;
                 }
 
-                // Calculate threshold (normalize to 0-255 range) centered around 0
-                // Use +0.5 to center the Bayer cell and avoid negative bias that darkened
-                // the image when pixelSize > 1.
-                float threshold = (((bayerValue + 0.5f) / (float)bayerDivisor) - 0.5f) * 255.0f;
+                int offset = bayerIntOffsets[y % bayerSize][x % bayerSize];
+                r = constrain(r + offset, 0, 255);
+                g = constrain(g + offset, 0, 255);
+                b = constrain(b + offset, 0, 255);
 
-                // Apply threshold and quantize
-                float thresholdedR = oldR + threshold - 127.5f;
-                float thresholdedG = oldG + threshold - 127.5f;
-                float thresholdedB = oldB + threshold - 127.5f;
-
-                // Clamp to valid range
-                thresholdedR = constrain(thresholdedR, 0, 255);
-                thresholdedG = constrain(thresholdedG, 0, 255);
-                thresholdedB = constrain(thresholdedB, 0, 255);
-
-                // Quantize to the target bit depth
-                uint8_t newR = round(round(thresholdedR / redScale) * redScale);
-                uint8_t newG = round(round(thresholdedG / greenScale) * greenScale);
-                uint8_t newB = round(round(thresholdedB / blueScale) * blueScale);
-
-                // Store the quantized value
-                redBuffer[idx] = newR;
-                greenBuffer[idx] = newG;
-                blueBuffer[idx] = newB;
+                uint16_t color = ((uint16_t)(rQuantLUT[r] >> 3) << 11) |
+                                 ((uint16_t)(gQuantLUT[g] >> 2) << 5) |
+                                 (uint16_t)(bQuantLUT[b] >> 3);
+                if (swapBytes)
+                    color = (uint16_t)((color << 8) | (color >> 8));
+                frameBuffer[idx] = color;
             }
         }
     }
-
-    // Convert back to RGB565 format
-    for (int i = 0; i < width * height; i++)
-    {
-        uint8_t r = redBuffer[i];
-        uint8_t g = greenBuffer[i];
-        uint8_t b = blueBuffer[i];
-
-        // Convert 8-bit to RGB565 format
-        uint8_t r5 = r >> 3;
-        uint8_t g6 = g >> 2;
-        uint8_t b5 = b >> 3;
-        uint16_t color = (r5 << 11) | (g6 << 5) | b5;
-
-        if (swapBytes)
-        {
-            color = ((color << 8) | (color >> 8));
-        }
-
-        outputBuffer[i] = color;
-    }
-
-    // Copy the processed image back to the camera frame buffer
-    memcpy(frameBuffer, outputBuffer, width * height * sizeof(uint16_t));
-
-    // Free allocated memory
-    free(redBuffer);
-    free(greenBuffer);
-    free(blueBuffer);
-    if (algorithm == 0)
-    {
-        free(redErrorBuffer);
-        free(greenErrorBuffer);
-        free(blueErrorBuffer);
-    }
-    free(outputBuffer);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
