@@ -508,7 +508,7 @@ int colorDistance(uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t g2, ui
  * @param height Image height
  * @param palette Pointer to palette array
  * @param paletteSize Number of colors in palette
- * @param dithering Dithering algorithm: 0=OFF, 1=Floyd-Steinberg, 2=Bayer
+ * @param dithering Dithering algorithm: 0=OFF, 1=Floyd-Steinberg, 2=Bayer, 3=Sierra Lite, 4=Atkinson
  * @param pixelSize Pixelation size (1 = no pixelation)
  * @param bayerSize Bayer matrix size (2, 4, or 8) - only used when dithering = 2
  */
@@ -661,8 +661,8 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
         return;
     }
 
-    // Allocate error buffers only if Floyd-Steinberg dithering is enabled
-    if (dithering == 1)
+    // Allocate error buffers for error-diffusion dithering algorithms
+    if (dithering == 1 || dithering == 3 || dithering == 4)
     {
         redErrorBuffer = (float *)ps_malloc(workWidth * workHeight * sizeof(float));
         greenErrorBuffer = (float *)ps_malloc(workWidth * workHeight * sizeof(float));
@@ -683,8 +683,8 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
         }
     }
 
-    // Initialize error buffers with original pixel values (only if Floyd-Steinberg is enabled)
-    if (dithering == 1)
+    // Initialize error buffers with original pixel values (for error-diffusion dithering)
+    if (dithering == 1 || dithering == 3 || dithering == 4)
     {
         for (int i = 0; i < workWidth * workHeight; i++)
         {
@@ -722,6 +722,9 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
     for (int y = 0; y < workHeight; y++)
     {
         bool leftToRight = (y % 2 == 0);
+        // Sierra Lite and Atkinson are always left-to-right (no serpentine scan)
+        if (dithering == 3 || dithering == 4)
+            leftToRight = true;
         int xStart = leftToRight ? 0 : workWidth - 1;
         int xEnd = leftToRight ? workWidth : -1;
         int xStep = leftToRight ? 1 : -1;
@@ -744,10 +747,10 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
                 sampleIdx = blockY * workWidth + blockX;
             }
 
-            // Get color from appropriate source (error buffer for Floyd-Steinberg, image buffer otherwise)
-            if (dithering == 1)
+            // Get color from appropriate source (error buffer for error-diffusion, image buffer otherwise)
+            if (dithering == 1 || dithering == 3 || dithering == 4)
             {
-                // Floyd-Steinberg uses error buffers
+                // Error-diffusion algorithms use error buffers
                 r = constrain(round(redErrorBuffer[sampleIdx]), 0, 255);
                 g = constrain(round(greenErrorBuffer[sampleIdx]), 0, 255);
                 b = constrain(round(blueErrorBuffer[sampleIdx]), 0, 255);
@@ -846,9 +849,9 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
             uint8_t newG = (closestColor >> 8) & 0xFF;
             uint8_t newB = closestColor & 0xFF;
 
-            // Calculate quantization error (only if Floyd-Steinberg is enabled)
+            // Calculate quantization error (for error-diffusion algorithms)
             float errorR = 0, errorG = 0, errorB = 0;
-            if (dithering == 1)
+            if (dithering == 1 || dithering == 3 || dithering == 4)
             {
                 errorR = r - newR;
                 errorG = g - newG;
@@ -869,9 +872,10 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
 
             outputBuffer[idx] = newPixel;
 
-            // Distribute error to neighboring pixels using Floyd-Steinberg algorithm (only if Floyd-Steinberg is enabled)
+            // Distribute error to neighboring pixels
             if (dithering == 1)
             {
+                // Floyd-Steinberg error distribution
                 if (leftToRight)
                 {
                     // Left to right pattern
@@ -939,6 +943,72 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
                     }
                 }
             }
+            else if (dithering == 3)
+            {
+                // Sierra Filter Lite: * 2/4  below-left 1/4  below 1/4
+                if (x + 1 < workWidth)
+                {
+                    redErrorBuffer[idx + 1] += errorR * 0.5f;
+                    greenErrorBuffer[idx + 1] += errorG * 0.5f;
+                    blueErrorBuffer[idx + 1] += errorB * 0.5f;
+                }
+                if (y + 1 < workHeight)
+                {
+                    int nextRow = (y + 1) * workWidth;
+                    if (x - 1 >= 0)
+                    {
+                        redErrorBuffer[nextRow + x - 1] += errorR * 0.25f;
+                        greenErrorBuffer[nextRow + x - 1] += errorG * 0.25f;
+                        blueErrorBuffer[nextRow + x - 1] += errorB * 0.25f;
+                    }
+                    redErrorBuffer[nextRow + x] += errorR * 0.25f;
+                    greenErrorBuffer[nextRow + x] += errorG * 0.25f;
+                    blueErrorBuffer[nextRow + x] += errorB * 0.25f;
+                }
+            }
+            else if (dithering == 4)
+            {
+                // Atkinson Dithering: distributes 6/8 of error
+                const float f1_8 = 1.0f / 8.0f;
+                if (x + 1 < workWidth)
+                {
+                    redErrorBuffer[idx + 1] += errorR * f1_8;
+                    greenErrorBuffer[idx + 1] += errorG * f1_8;
+                    blueErrorBuffer[idx + 1] += errorB * f1_8;
+                }
+                if (x + 2 < workWidth)
+                {
+                    redErrorBuffer[idx + 2] += errorR * f1_8;
+                    greenErrorBuffer[idx + 2] += errorG * f1_8;
+                    blueErrorBuffer[idx + 2] += errorB * f1_8;
+                }
+                if (y + 1 < workHeight)
+                {
+                    int nextRow = (y + 1) * workWidth;
+                    if (x - 1 >= 0)
+                    {
+                        redErrorBuffer[nextRow + x - 1] += errorR * f1_8;
+                        greenErrorBuffer[nextRow + x - 1] += errorG * f1_8;
+                        blueErrorBuffer[nextRow + x - 1] += errorB * f1_8;
+                    }
+                    redErrorBuffer[nextRow + x] += errorR * f1_8;
+                    greenErrorBuffer[nextRow + x] += errorG * f1_8;
+                    blueErrorBuffer[nextRow + x] += errorB * f1_8;
+                    if (x + 1 < workWidth)
+                    {
+                        redErrorBuffer[nextRow + x + 1] += errorR * f1_8;
+                        greenErrorBuffer[nextRow + x + 1] += errorG * f1_8;
+                        blueErrorBuffer[nextRow + x + 1] += errorB * f1_8;
+                    }
+                }
+                if (y + 2 < workHeight)
+                {
+                    int nextNextRow = (y + 2) * workWidth;
+                    redErrorBuffer[nextNextRow + x] += errorR * f1_8;
+                    greenErrorBuffer[nextNextRow + x] += errorG * f1_8;
+                    blueErrorBuffer[nextNextRow + x] += errorB * f1_8;
+                }
+            }
         }
     }
 
@@ -964,7 +1034,7 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
 
     // Free memory
     free(outputBuffer);
-    if (dithering == 1)
+    if (dithering == 1 || dithering == 3 || dithering == 4)
     {
         free(redErrorBuffer);
         free(greenErrorBuffer);

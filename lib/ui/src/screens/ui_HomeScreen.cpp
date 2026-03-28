@@ -335,7 +335,7 @@ static inline int clamp_palette_index(int idx)
 
 static inline int clamp_dither_type(int v)
 {
-    if (v < 0 || v > 2)
+    if (v < 0 || v > 4)
     {
         return 0;
     }
@@ -1338,7 +1338,9 @@ void ui_HomeScreen_screen_init(void)
         ui_DitherDropdown,
         "Off\n"
         "Floyd-Steinberg\n"
-        "Bayer");
+        "Bayer\n"
+        "Sierra Lite\n"
+        "Atkinson");
     lv_dropdown_set_selected(ui_DitherDropdown, current_dithering);
 
     /* Pixel size dropdown */
