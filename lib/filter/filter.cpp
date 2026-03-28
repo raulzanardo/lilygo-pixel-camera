@@ -1,4 +1,5 @@
 #include "filter.h"
+#include <esp_heap_caps.h>
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
@@ -646,7 +647,150 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
         }
     }
 
-    // Allocate memory using PSRAM for buffers
+    // Palette-derived data cached across calls — only rebuilt when palette pointer/size changes.
+    // This is critical: the LUT build costs ~1M operations for a 16-color palette and was
+    // previously executed every frame, consuming ~40ms/frame at 240MHz.
+    static const uint32_t *s_cachedPalette = nullptr;
+    static int s_cachedPaletteSize = 0;
+    static uint8_t s_prArr[256], s_pgArr[256], s_pbArr[256];
+    static uint16_t s_palettePixels[256];
+    static uint8_t *palLUT = nullptr; // persists in internal SRAM across calls
+
+    if (palette != s_cachedPalette || paletteSize != s_cachedPaletteSize)
+    {
+        // Palette changed — refresh pre-extracted arrays
+        for (int j = 0; j < paletteSize; j++)
+        {
+            s_prArr[j] = (palette[j] >> 16) & 0xFF;
+            s_pgArr[j] = (palette[j] >> 8) & 0xFF;
+            s_pbArr[j] = palette[j] & 0xFF;
+            uint8_t r5 = s_prArr[j] >> 3;
+            uint8_t g6 = s_pgArr[j] >> 2;
+            uint8_t b5 = s_pbArr[j] >> 3;
+            uint16_t px = (r5 << 11) | (g6 << 5) | b5;
+            s_palettePixels[j] = (uint16_t)((px << 8) | (px >> 8));
+        }
+
+        // Allocate LUT in internal SRAM if not already done (or if size changed)
+        if (!palLUT)
+        {
+            palLUT = (uint8_t *)heap_caps_malloc(65536 * sizeof(uint8_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+            if (!palLUT)
+                palLUT = (uint8_t *)ps_malloc(65536 * sizeof(uint8_t));
+        }
+
+        // Rebuild the LUT for the new palette
+        if (palLUT)
+        {
+            for (int r5 = 0; r5 < 32; r5++)
+            {
+                uint8_t r = (uint8_t)(r5 << 3);
+                for (int g6 = 0; g6 < 64; g6++)
+                {
+                    uint8_t g = (uint8_t)(g6 << 2);
+                    for (int b5 = 0; b5 < 32; b5++)
+                    {
+                        uint8_t b = (uint8_t)(b5 << 3);
+                        int minDist = INT_MAX, best = 0;
+                        for (int j = 0; j < paletteSize; j++)
+                        {
+                            int dr = r - s_prArr[j], dg = g - s_pgArr[j], db = b - s_pbArr[j];
+                            int dist = dr * dr * 2 + dg * dg * 4 + db * db * 3;
+                            if (dist < minDist)
+                            {
+                                minDist = dist;
+                                best = j;
+                                if (!dist)
+                                    break;
+                            }
+                        }
+                        palLUT[(r5 << 11) | (g6 << 5) | b5] = (uint8_t)best;
+                    }
+                }
+            }
+        }
+
+        s_cachedPalette = palette;
+        s_cachedPaletteSize = paletteSize;
+    }
+
+    // Use cached palette arrays
+    const uint8_t *prArr = s_prArr;
+    const uint8_t *pgArr = s_pgArr;
+    const uint8_t *pbArr = s_pbArr;
+    const uint16_t *palettePixels = s_palettePixels;
+
+    // Mode 0 fast path: in-place O(1) per-pixel, no outputBuffer needed.
+    if (dithering == 0 && palLUT)
+    {
+        if (pixelSize <= 1)
+        {
+            int total = workWidth * workHeight;
+            for (int i = 0; i < total; i++)
+            {
+                uint16_t px = (uint16_t)((workingBuffer[i] << 8) | (workingBuffer[i] >> 8));
+                uint8_t r = ((px >> 11) & 0x1F) << 3;
+                uint8_t g = ((px >> 5) & 0x3F) << 2;
+                uint8_t b = (px & 0x1F) << 3;
+                if (autoLevels)
+                {
+                    if (alMaxR > alMinR)
+                        r = (uint8_t)constrain((r - alMinR) * 255 / (alMaxR - alMinR), 0, 255);
+                    if (alMaxG > alMinG)
+                        g = (uint8_t)constrain((g - alMinG) * 255 / (alMaxG - alMinG), 0, 255);
+                    if (alMaxB > alMinB)
+                        b = (uint8_t)constrain((b - alMinB) * 255 / (alMaxB - alMinB), 0, 255);
+                }
+                workingBuffer[i] = palettePixels[palLUT[((uint16_t)(r >> 3) << 11) | ((uint16_t)(g >> 2) << 5) | (b >> 3)]];
+            }
+        }
+        else
+        {
+            uint16_t *outBuf = (uint16_t *)ps_malloc(workWidth * workHeight * sizeof(uint16_t));
+            if (outBuf)
+            {
+                for (int y = 0; y < workHeight; y++)
+                {
+                    int bcy = constrain((y / pixelSize) * pixelSize + pixelSize / 2, 0, workHeight - 1);
+                    for (int x = 0; x < workWidth; x++)
+                    {
+                        int bcx = constrain((x / pixelSize) * pixelSize + pixelSize / 2, 0, workWidth - 1);
+                        uint16_t raw = workingBuffer[bcy * workWidth + bcx];
+                        uint16_t px = (uint16_t)((raw << 8) | (raw >> 8));
+                        uint8_t r = ((px >> 11) & 0x1F) << 3;
+                        uint8_t g = ((px >> 5) & 0x3F) << 2;
+                        uint8_t b = (px & 0x1F) << 3;
+                        if (autoLevels)
+                        {
+                            if (alMaxR > alMinR)
+                                r = (uint8_t)constrain((r - alMinR) * 255 / (alMaxR - alMinR), 0, 255);
+                            if (alMaxG > alMinG)
+                                g = (uint8_t)constrain((g - alMinG) * 255 / (alMaxG - alMinG), 0, 255);
+                            if (alMaxB > alMinB)
+                                b = (uint8_t)constrain((b - alMinB) * 255 / (alMaxB - alMinB), 0, 255);
+                        }
+                        outBuf[y * workWidth + x] = palettePixels[palLUT[((uint16_t)(r >> 3) << 11) | ((uint16_t)(g >> 2) << 5) | (b >> 3)]];
+                    }
+                }
+                memcpy(workingBuffer, outBuf, workWidth * workHeight * sizeof(uint16_t));
+                free(outBuf);
+            }
+        }
+        // palLUT is a static cache — not freed here
+        if (usedDownscale)
+        {
+            for (int y = 0; y < origHeight; ++y)
+            {
+                int srcY = y / downscale;
+                for (int x = 0; x < origWidth; ++x)
+                    imageBuffer[y * origWidth + x] = workingBuffer[srcY * workWidth + (x / downscale)];
+            }
+            free(downscaledBuffer);
+        }
+        return;
+    }
+
+    // Allocate output buffer for modes 1-4 (or mode 0 fallback if palLUT unavailable)
     uint16_t *outputBuffer = (uint16_t *)ps_malloc(workWidth * workHeight * sizeof(uint16_t));
     int16_t *redErrorBuffer = nullptr;
     int16_t *greenErrorBuffer = nullptr;
@@ -654,6 +798,7 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
 
     if (!outputBuffer)
     {
+        // palLUT is a static cache — not freed here
         if (downscaledBuffer)
         {
             free(downscaledBuffer);
@@ -712,19 +857,17 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
         }
     }
 
-    // Pre-extract palette colors for faster per-pixel lookup
-    uint8_t prArr[paletteSize], pgArr[paletteSize], pbArr[paletteSize];
-    uint16_t palettePixels[paletteSize];
-    for (int j = 0; j < paletteSize; j++)
+    // Precompute integer Bayer offset table (avoids float arithmetic and branch-on-matrix per pixel)
+    int bayerIntOffsets[8][8] = {};
+    if (dithering == 2)
     {
-        prArr[j] = (palette[j] >> 16) & 0xFF;
-        pgArr[j] = (palette[j] >> 8) & 0xFF;
-        pbArr[j] = palette[j] & 0xFF;
-        uint8_t r5 = prArr[j] >> 3;
-        uint8_t g6 = pgArr[j] >> 2;
-        uint8_t b5 = pbArr[j] >> 3;
-        uint16_t px = (r5 << 11) | (g6 << 5) | b5;
-        palettePixels[j] = (uint16_t)((px << 8) | (px >> 8)); // pre-applied byte swap
+        for (int by = 0; by < bayerSize; by++)
+            for (int bx = 0; bx < bayerSize; bx++)
+            {
+                int bv = (bayerSize == 2) ? bayer2x2[by][bx] : (bayerSize == 4) ? bayer4x4[by][bx]
+                                                                                : bayer8x8[by][bx];
+                bayerIntOffsets[by][bx] = (bv * 255 / bayerDivisor) - 127;
+            }
     }
 
     // Process each pixel
@@ -808,46 +951,34 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
                     bayerX = x % bayerSize;
                     bayerY = y % bayerSize;
                 }
-                int bayerValue;
-
-                if (bayerSize == 2)
-                {
-                    bayerValue = bayer2x2[bayerY][bayerX];
-                }
-                else if (bayerSize == 4)
-                {
-                    bayerValue = bayer4x4[bayerY][bayerX];
-                }
-                else // bayerSize == 8
-                {
-                    bayerValue = bayer8x8[bayerY][bayerX];
-                }
-
-                // Calculate threshold (normalize to 0-255 range)
-                float threshold = (bayerValue / (float)bayerDivisor) * 255.0f;
-
-                // Apply threshold
-                r = constrain(r + threshold - 127.5f, 0, 255);
-                g = constrain(g + threshold - 127.5f, 0, 255);
-                b = constrain(b + threshold - 127.5f, 0, 255);
+                // Apply precomputed integer Bayer offset (no float arithmetic)
+                int bayerOffset = bayerIntOffsets[bayerY][bayerX];
+                r = (uint8_t)constrain((int)r + bayerOffset, 0, 255);
+                g = (uint8_t)constrain((int)g + bayerOffset, 0, 255);
+                b = (uint8_t)constrain((int)b + bayerOffset, 0, 255);
             }
 
-            // Find the closest color in the palette
-            int minDistance = INT_MAX;
-            int closestIndex = 0;
-
-            for (int j = 0; j < paletteSize; j++)
+            // Find the closest palette color: O(1) LUT lookup, or O(paletteSize) fallback
+            int closestIndex;
+            if (palLUT)
             {
-                int dr = (int)r - prArr[j];
-                int dg = (int)g - pgArr[j];
-                int db = (int)b - pbArr[j];
-                int distance = dr * dr * 2 + dg * dg * 4 + db * db * 3;
-                if (distance < minDistance)
+                closestIndex = palLUT[((uint16_t)(r >> 3) << 11) | ((uint16_t)(g >> 2) << 5) | (b >> 3)];
+            }
+            else
+            {
+                int minDistance = INT_MAX;
+                closestIndex = 0;
+                for (int j = 0; j < paletteSize; j++)
                 {
-                    minDistance = distance;
-                    closestIndex = j;
-                    if (distance == 0)
-                        break;
+                    int dr = (int)r - prArr[j], dg = (int)g - pgArr[j], db = (int)b - pbArr[j];
+                    int distance = dr * dr * 2 + dg * dg * 4 + db * db * 3;
+                    if (distance < minDistance)
+                    {
+                        minDistance = distance;
+                        closestIndex = j;
+                        if (!distance)
+                            break;
+                    }
                 }
             }
 
@@ -1016,7 +1147,7 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
         memcpy(imageBuffer, outputBuffer, workWidth * workHeight * sizeof(uint16_t));
     }
 
-    // Free memory
+    // Free memory (palLUT is a static cache — not freed here)
     free(outputBuffer);
     if (dithering == 1 || dithering == 3 || dithering == 4)
     {
