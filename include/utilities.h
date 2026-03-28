@@ -61,7 +61,7 @@
 #define CAMERA_PIN_Y2 (45)
 #define CAMERA_PIN_PCLK (2)
 #define CAMERA_WHITH_LED (38)
-#define XCLK_FREQ_HZ 24000000
+#define XCLK_FREQ_HZ 20000000
 
 #define CAMERA_LEC_CH 0
 #define LEDC_TFT_CH 1
