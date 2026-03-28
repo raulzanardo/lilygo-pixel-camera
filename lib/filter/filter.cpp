@@ -648,9 +648,9 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
 
     // Allocate memory using PSRAM for buffers
     uint16_t *outputBuffer = (uint16_t *)ps_malloc(workWidth * workHeight * sizeof(uint16_t));
-    float *redErrorBuffer = nullptr;
-    float *greenErrorBuffer = nullptr;
-    float *blueErrorBuffer = nullptr;
+    int16_t *redErrorBuffer = nullptr;
+    int16_t *greenErrorBuffer = nullptr;
+    int16_t *blueErrorBuffer = nullptr;
 
     if (!outputBuffer)
     {
@@ -664,9 +664,9 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
     // Allocate error buffers for error-diffusion dithering algorithms
     if (dithering == 1 || dithering == 3 || dithering == 4)
     {
-        redErrorBuffer = (float *)ps_malloc(workWidth * workHeight * sizeof(float));
-        greenErrorBuffer = (float *)ps_malloc(workWidth * workHeight * sizeof(float));
-        blueErrorBuffer = (float *)ps_malloc(workWidth * workHeight * sizeof(float));
+        redErrorBuffer = (int16_t *)ps_malloc(workWidth * workHeight * sizeof(int16_t));
+        greenErrorBuffer = (int16_t *)ps_malloc(workWidth * workHeight * sizeof(int16_t));
+        blueErrorBuffer = (int16_t *)ps_malloc(workWidth * workHeight * sizeof(int16_t));
 
         if (!redErrorBuffer || !greenErrorBuffer || !blueErrorBuffer)
         {
@@ -696,27 +696,36 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
             }
 
             // Extract RGB components from RGB565 format
-            redErrorBuffer[i] = ((pixel >> 11) & 0x1F) << 3;  // 5 bits to 8 bits
-            greenErrorBuffer[i] = ((pixel >> 5) & 0x3F) << 2; // 6 bits to 8 bits
-            blueErrorBuffer[i] = (pixel & 0x1F) << 3;         // 5 bits to 8 bits
+            redErrorBuffer[i] = (int16_t)(((pixel >> 11) & 0x1F) << 3);  // 5 bits to 8 bits
+            greenErrorBuffer[i] = (int16_t)(((pixel >> 5) & 0x3F) << 2); // 6 bits to 8 bits
+            blueErrorBuffer[i] = (int16_t)((pixel & 0x1F) << 3);         // 5 bits to 8 bits
 
             if (autoLevels)
             {
                 if (alMaxR > alMinR)
-                    redErrorBuffer[i] = (redErrorBuffer[i] - alMinR) * 255.0f / (alMaxR - alMinR);
+                    redErrorBuffer[i] = (int16_t)((redErrorBuffer[i] - alMinR) * 255 / (alMaxR - alMinR));
                 if (alMaxG > alMinG)
-                    greenErrorBuffer[i] = (greenErrorBuffer[i] - alMinG) * 255.0f / (alMaxG - alMinG);
+                    greenErrorBuffer[i] = (int16_t)((greenErrorBuffer[i] - alMinG) * 255 / (alMaxG - alMinG));
                 if (alMaxB > alMinB)
-                    blueErrorBuffer[i] = (blueErrorBuffer[i] - alMinB) * 255.0f / (alMaxB - alMinB);
+                    blueErrorBuffer[i] = (int16_t)((blueErrorBuffer[i] - alMinB) * 255 / (alMaxB - alMinB));
             }
         }
     }
 
-    // Precalculate error distribution factors for Floyd-Steinberg dithering
-    const float f7_16 = 7.0f / 16.0f;
-    const float f3_16 = 3.0f / 16.0f;
-    const float f5_16 = 5.0f / 16.0f;
-    const float f1_16 = 1.0f / 16.0f;
+    // Pre-extract palette colors for faster per-pixel lookup
+    uint8_t prArr[paletteSize], pgArr[paletteSize], pbArr[paletteSize];
+    uint16_t palettePixels[paletteSize];
+    for (int j = 0; j < paletteSize; j++)
+    {
+        prArr[j] = (palette[j] >> 16) & 0xFF;
+        pgArr[j] = (palette[j] >> 8) & 0xFF;
+        pbArr[j] = palette[j] & 0xFF;
+        uint8_t r5 = prArr[j] >> 3;
+        uint8_t g6 = pgArr[j] >> 2;
+        uint8_t b5 = pbArr[j] >> 3;
+        uint16_t px = (r5 << 11) | (g6 << 5) | b5;
+        palettePixels[j] = (uint16_t)((px << 8) | (px >> 8)); // pre-applied byte swap
+    }
 
     // Process each pixel
     for (int y = 0; y < workHeight; y++)
@@ -751,9 +760,9 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
             if (dithering == 1 || dithering == 3 || dithering == 4)
             {
                 // Error-diffusion algorithms use error buffers
-                r = constrain(round(redErrorBuffer[sampleIdx]), 0, 255);
-                g = constrain(round(greenErrorBuffer[sampleIdx]), 0, 255);
-                b = constrain(round(blueErrorBuffer[sampleIdx]), 0, 255);
+                r = (uint8_t)constrain((int)redErrorBuffer[sampleIdx], 0, 255);
+                g = (uint8_t)constrain((int)greenErrorBuffer[sampleIdx], 0, 255);
+                b = (uint8_t)constrain((int)blueErrorBuffer[sampleIdx], 0, 255);
             }
             else
             {
@@ -829,184 +838,159 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
 
             for (int j = 0; j < paletteSize; j++)
             {
-                uint32_t paletteColor = palette[j];
-                uint8_t pr = (paletteColor >> 16) & 0xFF;
-                uint8_t pg = (paletteColor >> 8) & 0xFF;
-                uint8_t pb = paletteColor & 0xFF;
-
-                int distance = colorDistance(r, g, b, pr, pg, pb);
-
+                int dr = (int)r - prArr[j];
+                int dg = (int)g - pgArr[j];
+                int db = (int)b - pbArr[j];
+                int distance = dr * dr * 2 + dg * dg * 4 + db * db * 3;
                 if (distance < minDistance)
                 {
                     minDistance = distance;
                     closestIndex = j;
+                    if (distance == 0)
+                        break;
                 }
             }
 
-            // Get the closest palette color
-            uint32_t closestColor = palette[closestIndex];
-            uint8_t newR = (closestColor >> 16) & 0xFF;
-            uint8_t newG = (closestColor >> 8) & 0xFF;
-            uint8_t newB = closestColor & 0xFF;
+            // Get the closest palette color using pre-extracted arrays
+            uint8_t newR = prArr[closestIndex];
+            uint8_t newG = pgArr[closestIndex];
+            uint8_t newB = pbArr[closestIndex];
 
             // Calculate quantization error (for error-diffusion algorithms)
-            float errorR = 0, errorG = 0, errorB = 0;
+            int errorR = 0, errorG = 0, errorB = 0;
             if (dithering == 1 || dithering == 3 || dithering == 4)
             {
-                errorR = r - newR;
-                errorG = g - newG;
-                errorB = b - newB;
+                errorR = (int)r - newR;
+                errorG = (int)g - newG;
+                errorB = (int)b - newB;
             }
 
-            // Convert back to RGB565 format
-            uint8_t r5 = newR >> 3; // Convert 8-bit to 5-bit (for red)
-            uint8_t g6 = newG >> 2; // Convert 8-bit to 6-bit (for green)
-            uint8_t b5 = newB >> 3; // Convert 8-bit to 5-bit (for blue)
+            outputBuffer[idx] = palettePixels[closestIndex];
 
-            uint16_t newPixel = (r5 << 11) | (g6 << 5) | b5;
-
-            if (swapBytes)
-            {
-                newPixel = ((newPixel << 8) | (newPixel >> 8));
-            }
-
-            outputBuffer[idx] = newPixel;
-
-            // Distribute error to neighboring pixels
+            // Distribute error to neighboring pixels (integer arithmetic)
             if (dithering == 1)
             {
-                // Floyd-Steinberg error distribution
+                // Floyd-Steinberg: 7/16, 3/16, 5/16, 1/16
                 if (leftToRight)
                 {
-                    // Left to right pattern
                     if (x + 1 < workWidth)
                     {
-                        redErrorBuffer[idx + 1] += errorR * f7_16;
-                        greenErrorBuffer[idx + 1] += errorG * f7_16;
-                        blueErrorBuffer[idx + 1] += errorB * f7_16;
+                        redErrorBuffer[idx + 1] += (int16_t)((errorR * 7) >> 4);
+                        greenErrorBuffer[idx + 1] += (int16_t)((errorG * 7) >> 4);
+                        blueErrorBuffer[idx + 1] += (int16_t)((errorB * 7) >> 4);
                     }
-
                     if (y + 1 < workHeight)
                     {
                         int nextRow = (y + 1) * workWidth;
-
                         if (x - 1 >= 0)
                         {
-                            redErrorBuffer[nextRow + x - 1] += errorR * f3_16;
-                            greenErrorBuffer[nextRow + x - 1] += errorG * f3_16;
-                            blueErrorBuffer[nextRow + x - 1] += errorB * f3_16;
+                            redErrorBuffer[nextRow + x - 1] += (int16_t)((errorR * 3) >> 4);
+                            greenErrorBuffer[nextRow + x - 1] += (int16_t)((errorG * 3) >> 4);
+                            blueErrorBuffer[nextRow + x - 1] += (int16_t)((errorB * 3) >> 4);
                         }
-
-                        redErrorBuffer[nextRow + x] += errorR * f5_16;
-                        greenErrorBuffer[nextRow + x] += errorG * f5_16;
-                        blueErrorBuffer[nextRow + x] += errorB * f5_16;
-
+                        redErrorBuffer[nextRow + x] += (int16_t)((errorR * 5) >> 4);
+                        greenErrorBuffer[nextRow + x] += (int16_t)((errorG * 5) >> 4);
+                        blueErrorBuffer[nextRow + x] += (int16_t)((errorB * 5) >> 4);
                         if (x + 1 < workWidth)
                         {
-                            redErrorBuffer[nextRow + x + 1] += errorR * f1_16;
-                            greenErrorBuffer[nextRow + x + 1] += errorG * f1_16;
-                            blueErrorBuffer[nextRow + x + 1] += errorB * f1_16;
+                            redErrorBuffer[nextRow + x + 1] += (int16_t)(errorR >> 4);
+                            greenErrorBuffer[nextRow + x + 1] += (int16_t)(errorG >> 4);
+                            blueErrorBuffer[nextRow + x + 1] += (int16_t)(errorB >> 4);
                         }
                     }
                 }
                 else
                 {
-                    // Right to left pattern
                     if (x - 1 >= 0)
                     {
-                        redErrorBuffer[idx - 1] += errorR * f7_16;
-                        greenErrorBuffer[idx - 1] += errorG * f7_16;
-                        blueErrorBuffer[idx - 1] += errorB * f7_16;
+                        redErrorBuffer[idx - 1] += (int16_t)((errorR * 7) >> 4);
+                        greenErrorBuffer[idx - 1] += (int16_t)((errorG * 7) >> 4);
+                        blueErrorBuffer[idx - 1] += (int16_t)((errorB * 7) >> 4);
                     }
-
                     if (y + 1 < workHeight)
                     {
                         int nextRow = (y + 1) * workWidth;
-
                         if (x + 1 < workWidth)
                         {
-                            redErrorBuffer[nextRow + x + 1] += errorR * f3_16;
-                            greenErrorBuffer[nextRow + x + 1] += errorG * f3_16;
-                            blueErrorBuffer[nextRow + x + 1] += errorB * f3_16;
+                            redErrorBuffer[nextRow + x + 1] += (int16_t)((errorR * 3) >> 4);
+                            greenErrorBuffer[nextRow + x + 1] += (int16_t)((errorG * 3) >> 4);
+                            blueErrorBuffer[nextRow + x + 1] += (int16_t)((errorB * 3) >> 4);
                         }
-
-                        redErrorBuffer[nextRow + x] += errorR * f5_16;
-                        greenErrorBuffer[nextRow + x] += errorG * f5_16;
-                        blueErrorBuffer[nextRow + x] += errorB * f5_16;
-
+                        redErrorBuffer[nextRow + x] += (int16_t)((errorR * 5) >> 4);
+                        greenErrorBuffer[nextRow + x] += (int16_t)((errorG * 5) >> 4);
+                        blueErrorBuffer[nextRow + x] += (int16_t)((errorB * 5) >> 4);
                         if (x - 1 >= 0)
                         {
-                            redErrorBuffer[nextRow + x - 1] += errorR * f1_16;
-                            greenErrorBuffer[nextRow + x - 1] += errorG * f1_16;
-                            blueErrorBuffer[nextRow + x - 1] += errorB * f1_16;
+                            redErrorBuffer[nextRow + x - 1] += (int16_t)(errorR >> 4);
+                            greenErrorBuffer[nextRow + x - 1] += (int16_t)(errorG >> 4);
+                            blueErrorBuffer[nextRow + x - 1] += (int16_t)(errorB >> 4);
                         }
                     }
                 }
             }
             else if (dithering == 3)
             {
-                // Sierra Filter Lite: * 2/4  below-left 1/4  below 1/4
+                // Sierra Filter Lite: right 1/2, below-left 1/4, below 1/4
                 if (x + 1 < workWidth)
                 {
-                    redErrorBuffer[idx + 1] += errorR * 0.5f;
-                    greenErrorBuffer[idx + 1] += errorG * 0.5f;
-                    blueErrorBuffer[idx + 1] += errorB * 0.5f;
+                    redErrorBuffer[idx + 1] += (int16_t)(errorR >> 1);
+                    greenErrorBuffer[idx + 1] += (int16_t)(errorG >> 1);
+                    blueErrorBuffer[idx + 1] += (int16_t)(errorB >> 1);
                 }
                 if (y + 1 < workHeight)
                 {
                     int nextRow = (y + 1) * workWidth;
                     if (x - 1 >= 0)
                     {
-                        redErrorBuffer[nextRow + x - 1] += errorR * 0.25f;
-                        greenErrorBuffer[nextRow + x - 1] += errorG * 0.25f;
-                        blueErrorBuffer[nextRow + x - 1] += errorB * 0.25f;
+                        redErrorBuffer[nextRow + x - 1] += (int16_t)(errorR >> 2);
+                        greenErrorBuffer[nextRow + x - 1] += (int16_t)(errorG >> 2);
+                        blueErrorBuffer[nextRow + x - 1] += (int16_t)(errorB >> 2);
                     }
-                    redErrorBuffer[nextRow + x] += errorR * 0.25f;
-                    greenErrorBuffer[nextRow + x] += errorG * 0.25f;
-                    blueErrorBuffer[nextRow + x] += errorB * 0.25f;
+                    redErrorBuffer[nextRow + x] += (int16_t)(errorR >> 2);
+                    greenErrorBuffer[nextRow + x] += (int16_t)(errorG >> 2);
+                    blueErrorBuffer[nextRow + x] += (int16_t)(errorB >> 2);
                 }
             }
             else if (dithering == 4)
             {
-                // Atkinson Dithering: distributes 6/8 of error
-                const float f1_8 = 1.0f / 8.0f;
+                // Atkinson: 1/8 each to 6 neighbors (6/8 total)
                 if (x + 1 < workWidth)
                 {
-                    redErrorBuffer[idx + 1] += errorR * f1_8;
-                    greenErrorBuffer[idx + 1] += errorG * f1_8;
-                    blueErrorBuffer[idx + 1] += errorB * f1_8;
+                    redErrorBuffer[idx + 1] += (int16_t)(errorR >> 3);
+                    greenErrorBuffer[idx + 1] += (int16_t)(errorG >> 3);
+                    blueErrorBuffer[idx + 1] += (int16_t)(errorB >> 3);
                 }
                 if (x + 2 < workWidth)
                 {
-                    redErrorBuffer[idx + 2] += errorR * f1_8;
-                    greenErrorBuffer[idx + 2] += errorG * f1_8;
-                    blueErrorBuffer[idx + 2] += errorB * f1_8;
+                    redErrorBuffer[idx + 2] += (int16_t)(errorR >> 3);
+                    greenErrorBuffer[idx + 2] += (int16_t)(errorG >> 3);
+                    blueErrorBuffer[idx + 2] += (int16_t)(errorB >> 3);
                 }
                 if (y + 1 < workHeight)
                 {
                     int nextRow = (y + 1) * workWidth;
                     if (x - 1 >= 0)
                     {
-                        redErrorBuffer[nextRow + x - 1] += errorR * f1_8;
-                        greenErrorBuffer[nextRow + x - 1] += errorG * f1_8;
-                        blueErrorBuffer[nextRow + x - 1] += errorB * f1_8;
+                        redErrorBuffer[nextRow + x - 1] += (int16_t)(errorR >> 3);
+                        greenErrorBuffer[nextRow + x - 1] += (int16_t)(errorG >> 3);
+                        blueErrorBuffer[nextRow + x - 1] += (int16_t)(errorB >> 3);
                     }
-                    redErrorBuffer[nextRow + x] += errorR * f1_8;
-                    greenErrorBuffer[nextRow + x] += errorG * f1_8;
-                    blueErrorBuffer[nextRow + x] += errorB * f1_8;
+                    redErrorBuffer[nextRow + x] += (int16_t)(errorR >> 3);
+                    greenErrorBuffer[nextRow + x] += (int16_t)(errorG >> 3);
+                    blueErrorBuffer[nextRow + x] += (int16_t)(errorB >> 3);
                     if (x + 1 < workWidth)
                     {
-                        redErrorBuffer[nextRow + x + 1] += errorR * f1_8;
-                        greenErrorBuffer[nextRow + x + 1] += errorG * f1_8;
-                        blueErrorBuffer[nextRow + x + 1] += errorB * f1_8;
+                        redErrorBuffer[nextRow + x + 1] += (int16_t)(errorR >> 3);
+                        greenErrorBuffer[nextRow + x + 1] += (int16_t)(errorG >> 3);
+                        blueErrorBuffer[nextRow + x + 1] += (int16_t)(errorB >> 3);
                     }
                 }
                 if (y + 2 < workHeight)
                 {
                     int nextNextRow = (y + 2) * workWidth;
-                    redErrorBuffer[nextNextRow + x] += errorR * f1_8;
-                    greenErrorBuffer[nextNextRow + x] += errorG * f1_8;
-                    blueErrorBuffer[nextNextRow + x] += errorB * f1_8;
+                    redErrorBuffer[nextNextRow + x] += (int16_t)(errorR >> 3);
+                    greenErrorBuffer[nextNextRow + x] += (int16_t)(errorG >> 3);
+                    blueErrorBuffer[nextNextRow + x] += (int16_t)(errorB >> 3);
                 }
             }
         }
