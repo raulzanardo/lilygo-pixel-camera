@@ -6,6 +6,8 @@
 #include <cstdio>
 #include <cstring>
 
+extern bool sd_format_card();
+
 static lv_obj_t *ui_settings_screen = NULL;
 static lv_obj_t *ui_settings_flash_switch = NULL;
 static lv_obj_t *ui_settings_storage_switch = NULL;
@@ -13,6 +15,7 @@ static lv_obj_t *ui_settings_auto_adjust_switch = NULL;
 static lv_obj_t *ui_settings_auto_levels_switch = NULL;
 static lv_obj_t *ui_settings_screenshot_switch = NULL;
 static lv_obj_t *ui_settings_back_btn = NULL;
+static lv_obj_t *ui_settings_format_sd_btn = NULL;
 
 // Forward declaration
 extern void ui_event_FlashSwitch(lv_event_t *e);
@@ -65,6 +68,93 @@ static void ui_settings_screenshot_event(lv_event_t *e)
 
     bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
     ui_set_screenshot_mode_enabled(enabled);
+}
+
+static void ui_settings_format_sd_confirm_event(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+    {
+        return;
+    }
+
+    lv_obj_t *mbox = lv_event_get_current_target(e);
+    const char *btn_text = lv_msgbox_get_active_btn_text(mbox);
+
+    if (btn_text && strcmp(btn_text, "Format") == 0)
+    {
+        lv_msgbox_close(mbox);
+
+        // Show a full-screen modal overlay with spinner and status text
+        lv_obj_t *overlay = lv_obj_create(lv_layer_top());
+        lv_obj_set_size(overlay, LV_PCT(100), LV_PCT(100));
+        lv_obj_set_style_bg_color(overlay, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(overlay, LV_OPA_70, 0);
+        lv_obj_set_style_border_width(overlay, 0, 0);
+        lv_obj_clear_flag(overlay, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_flex_flow(overlay, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(overlay, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_row(overlay, 16, 0);
+
+        lv_obj_t *spinner = lv_spinner_create(overlay, 1000, 60);
+        lv_obj_set_size(spinner, 60, 60);
+
+        lv_obj_t *status_label = lv_label_create(overlay);
+        lv_label_set_text(status_label, "Formatting...");
+        lv_obj_set_style_text_color(status_label, lv_color_white(), 0);
+
+        // Force a display refresh so the overlay appears before the blocking operation
+        lv_refr_now(NULL);
+
+        bool ok = sd_format_card();
+
+        // Update status, remove spinner
+        lv_obj_del(spinner);
+        if (ok)
+        {
+            lv_label_set_text(status_label, "Format complete!");
+            lv_obj_set_style_text_color(status_label, lv_palette_main(LV_PALETTE_GREEN), 0);
+        }
+        else
+        {
+            lv_label_set_text(status_label, "Format failed!");
+            lv_obj_set_style_text_color(status_label, lv_palette_main(LV_PALETTE_RED), 0);
+        }
+
+        lv_refr_now(NULL);
+
+        // Auto-close the overlay after 1.5 seconds
+        lv_timer_t *close_timer = lv_timer_create(
+            [](lv_timer_t *t)
+            {
+                lv_obj_t *ov = static_cast<lv_obj_t *>(t->user_data);
+                lv_obj_del(ov);
+                lv_timer_del(t);
+            },
+            1500, overlay);
+        (void)close_timer;
+    }
+    else
+    {
+        lv_msgbox_close(mbox);
+    }
+}
+
+static void ui_settings_format_sd_event(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+
+    static const char *btn_txts[] = {"Format", "Cancel", ""};
+    lv_obj_t *mbox = lv_msgbox_create(
+        NULL,
+        "Format SD Card",
+        "This will delete ALL files on the SD card.\nThis action cannot be undone!",
+        btn_txts,
+        false);
+    lv_obj_add_event_cb(mbox, ui_settings_format_sd_confirm_event, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_center(mbox);
 }
 
 static void ui_settings_back_event(lv_event_t *e)
@@ -232,6 +322,31 @@ static void build_settings_screen()
     }
     lv_obj_set_size(ui_settings_screenshot_switch, 60, 40);
     lv_obj_add_event_cb(ui_settings_screenshot_switch, ui_settings_screenshot_event, LV_EVENT_ALL, NULL);
+
+    // format SD card button
+    lv_obj_t *format_sd_row = lv_obj_create(ui_settings_screen);
+    lv_obj_set_width(format_sd_row, LV_PCT(100));
+    lv_obj_set_height(format_sd_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(format_sd_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(format_sd_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(format_sd_row, 0, 0);
+    lv_obj_set_style_pad_all(format_sd_row, 0, 0);
+    lv_obj_set_style_pad_row(format_sd_row, 8, 0);
+    lv_obj_set_style_pad_column(format_sd_row, 8, 0);
+    lv_obj_set_flex_flow(format_sd_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(format_sd_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *format_sd_label = lv_label_create(format_sd_row);
+    lv_label_set_text(format_sd_label, "Format SD Card");
+
+    ui_settings_format_sd_btn = lv_btn_create(format_sd_row);
+    lv_obj_set_height(ui_settings_format_sd_btn, 40);
+    lv_obj_set_style_radius(ui_settings_format_sd_btn, 8, 0);
+    lv_obj_set_style_bg_color(ui_settings_format_sd_btn, lv_palette_main(LV_PALETTE_RED), 0);
+    lv_obj_t *format_btn_label = lv_label_create(ui_settings_format_sd_btn);
+    lv_label_set_text(format_btn_label, "Format");
+    lv_obj_center(format_btn_label);
+    lv_obj_add_event_cb(ui_settings_format_sd_btn, ui_settings_format_sd_event, LV_EVENT_CLICKED, NULL);
 
     // Add flexible spacer to push version label to bottom
     lv_obj_t *spacer = lv_obj_create(ui_settings_screen);

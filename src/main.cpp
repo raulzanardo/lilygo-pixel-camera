@@ -183,6 +183,62 @@ uint32_t ui_get_sd_free_mb()
     return static_cast<uint32_t>(free / (1024 * 1024));
 }
 
+// Delete all files and directories from the SD card root
+static void sd_delete_root_contents()
+{
+    File root = SD.open("/");
+    if (!root)
+    {
+        return;
+    }
+
+    std::vector<String> files;
+    std::vector<String> dirs;
+
+    File entry = root.openNextFile();
+    while (entry)
+    {
+        String name = String("/") + entry.name();
+        if (entry.isDirectory())
+        {
+            dirs.push_back(name);
+        }
+        else
+        {
+            files.push_back(name);
+        }
+        File next = root.openNextFile();
+        entry.close();
+        entry = next;
+    }
+    root.close();
+
+    for (auto &f : files)
+    {
+        SD.remove(f.c_str());
+    }
+    for (auto &d : dirs)
+    {
+        SD.rmdir(d.c_str());
+    }
+}
+
+// Exported for settings screen - format SD card by deleting all content
+bool sd_format_card()
+{
+    if (!ensure_sd_initialized())
+    {
+        return false;
+    }
+
+    sd_delete_root_contents();
+
+    // Reset photo counter and saved preferences
+    photo_prefs.putUInt(PHOTO_PREF_KEY, 0);
+    photo_counter = 1;
+    return true;
+}
+
 // Exported for UI status bar - get battery voltage in mV
 uint16_t ui_get_battery_voltage()
 {
