@@ -779,10 +779,10 @@ void camera_init(void)
     config.pixel_format = PIXFORMAT_RGB565;
     config.frame_size = FRAMESIZE_HQVGA; // HQVGA (240x176) for best FPS
     config.jpeg_quality = 0;
-    config.fb_count = 1;
+    config.fb_count = 2;
 
     config.fb_location = CAMERA_FB_IN_PSRAM;
-    config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+    config.grab_mode = CAMERA_GRAB_LATEST;
 
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK)
@@ -802,14 +802,25 @@ void camera_init(void)
             s->set_hmirror(s, 0);
             s->set_vflip(s, 1);
 
+            // Disable slow ISP features to maximise FPS
+            s->set_lenc(s, 0);      // lens correction
+            s->set_raw_gma(s, 1);   // raw gamma (faster AE settling)
+            s->set_denoise(s, 0);   // noise reduction
+            s->set_sharpness(s, 0); // sharpness filter
+            s->set_dcw(s, 1);       // downsize crop window (keeps pipeline narrow)
+
             bool aec2_enabled = ui_get_aec2_enabled();
             s->set_aec2(s, aec2_enabled ? 1 : 0);
 
             if (aec2_enabled)
             {
-                s->set_dcw(s, 1);
                 s->set_bpc(s, 1);
                 s->set_wpc(s, 1);
+            }
+            else
+            {
+                s->set_bpc(s, 0); // black pixel correction
+                s->set_wpc(s, 0); // white pixel correction
             }
 
             bool gain_ctrl = ui_get_gain_ctrl_enabled();
