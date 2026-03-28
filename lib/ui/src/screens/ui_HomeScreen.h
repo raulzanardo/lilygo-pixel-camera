@@ -25,6 +25,10 @@ extern "C"
   int ui_get_filter_mode(void);
   int ui_get_dither_type(void);
   int ui_get_pixel_size(void);
+  int ui_get_dither_bits(void);
+  bool ui_get_dither_grayscale(void);
+  int ui_get_dither_algorithm(void);
+  int ui_get_dither_bayer_size(void);
   void ui_show_photo_overlay(const char *text);
 
   void ui_pause_camera_timer(void);

@@ -32,6 +32,7 @@ typedef enum
     CAMERA_FILTER_NONE = 0,
     CAMERA_FILTER_PIXELATE,
     CAMERA_FILTER_DITHER,
+    CAMERA_FILTER_COLOR_PALETTE,
     CAMERA_FILTER_EDGE,
     CAMERA_FILTER_CRT
 } camera_filter_t;
@@ -67,6 +68,11 @@ static lv_obj_t *ui_filter_column = NULL;
 static lv_obj_t *ui_camera_settings_column = NULL;
 static lv_obj_t *ui_DitherDropdown = NULL;
 static lv_obj_t *ui_PixelSizeDropdown = NULL;
+static lv_obj_t *ui_DitherAlgoDropdown = NULL;
+static lv_obj_t *ui_DitherBitsDropdown = NULL;
+static lv_obj_t *ui_DitherBayerSizeDropdown = NULL;
+static lv_obj_t *ui_DitherGrayscaleRow = NULL;
+static lv_obj_t *ui_DitherGrayscaleSwitch = NULL;
 static lv_obj_t *ui_photo_overlay_label = NULL;
 static lv_obj_t *ui_zoom_label = NULL;
 static lv_obj_t *ui_agc_gain_slider = NULL;
@@ -81,6 +87,10 @@ static int current_dithering = 0;
 static int current_pixel_size = 1;
 static int current_zoom_level = 0;
 static int current_palette_index = 0;
+static int current_dither_bits = 1;
+static bool current_dither_grayscale = false;
+static int current_dither_algorithm = 0;
+static int current_dither_bayer_size = 4;
 
 static Preferences ui_prefs;
 static bool ui_prefs_ready = false;
@@ -95,6 +105,10 @@ static const char *UI_PREF_EXPOSURE_CTRL_KEY = "exp_ctrl";
 static const char *UI_PREF_AEC_VALUE_KEY = "aec_value";
 static const char *UI_PREF_DITHER_KEY = "dither_type";
 static const char *UI_PREF_PIXEL_SIZE_KEY = "pixel_size";
+static const char *UI_PREF_DITHER_BITS_KEY = "dith_bits";
+static const char *UI_PREF_DITHER_GRAY_KEY = "dith_gray";
+static const char *UI_PREF_DITHER_ALGO_KEY = "dith_algo";
+static const char *UI_PREF_DITHER_BAYER_KEY = "dith_bayer";
 static const char *UI_PREF_AUTO_ADJUST_KEY = "auto_adjust";
 static const char *UI_PREF_AUTO_LEVELS_KEY = "auto_levels";
 static const char *UI_PREF_ZOOM_LEVEL_KEY = "zoom_level";
@@ -342,6 +356,56 @@ static inline int clamp_dither_type(int v)
     return v;
 }
 
+// Bits: 1, 2, 3, 4  → indices 0, 1, 2, 3
+static inline int clamp_bits(int v)
+{
+    if (v < 1 || v > 4)
+        return 1;
+    return v;
+}
+static inline int bits_to_index(int bits)
+{
+    return clamp_bits(bits) - 1;
+}
+static inline int index_to_bits(int idx)
+{
+    if (idx < 0 || idx > 3)
+        return 1;
+    return idx + 1;
+}
+
+// Dither algorithm: 0=Floyd-Steinberg, 1=Bayer
+static inline int clamp_dither_algorithm(int v)
+{
+    if (v < 0 || v > 1)
+        return 0;
+    return v;
+}
+
+// Bayer size: 2, 4, 8  → indices 0, 1, 2
+static inline int clamp_dither_bayer_size(int v)
+{
+    if (v == 2 || v == 4 || v == 8)
+        return v;
+    return 4;
+}
+static inline int bayer_size_to_index(int v)
+{
+    if (v == 2)
+        return 0;
+    if (v == 8)
+        return 2;
+    return 1; // 4
+}
+static inline int index_to_bayer_size(int idx)
+{
+    if (idx == 0)
+        return 2;
+    if (idx == 2)
+        return 8;
+    return 4; // 1
+}
+
 static inline int clamp_pixel_size(int v)
 {
     switch (v)
@@ -445,6 +509,11 @@ static void apply_selected_filter(camera_fb_t *frame)
         break;
     case CAMERA_FILTER_DITHER:
     {
+        applyDithering(frame, current_dither_bits, current_dither_bits, current_dither_bits, current_dither_grayscale, current_dither_algorithm, current_dither_bayer_size);
+    }
+    break;
+    case CAMERA_FILTER_COLOR_PALETTE:
+    {
         int palette_size = 0;
         const uint32_t *palette = get_current_palette(palette_size);
         applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, current_dithering, current_pixel_size, 2, ui_get_auto_levels_enabled());
@@ -470,6 +539,7 @@ static void ui_update_filter_dropdowns()
     bool showPalette = false;
     bool showDither = false;
     bool showPixelSize = false;
+    bool showDitherControls = false;
 
     switch (current_filter)
     {
@@ -477,6 +547,9 @@ static void ui_update_filter_dropdowns()
         showPixelSize = true;
         break;
     case CAMERA_FILTER_DITHER:
+        showDitherControls = true;
+        break;
+    case CAMERA_FILTER_COLOR_PALETTE:
         showPalette = true;
         showDither = true;
         showPixelSize = true;
@@ -504,6 +577,22 @@ static void ui_update_filter_dropdowns()
         lv_obj_clear_flag(ui_PixelSizeDropdown, LV_OBJ_FLAG_HIDDEN);
     else
         lv_obj_add_flag(ui_PixelSizeDropdown, LV_OBJ_FLAG_HIDDEN);
+
+    // Dithering filter dedicated controls
+    auto flagFn = [](lv_obj_t *obj, bool show)
+    {
+        if (!obj)
+            return;
+        if (show)
+            lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+        else
+            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    };
+    flagFn(ui_DitherAlgoDropdown, showDitherControls);
+    flagFn(ui_DitherBitsDropdown, showDitherControls);
+    flagFn(ui_DitherGrayscaleRow, showDitherControls);
+    // Bayer size only when dither controls visible AND algorithm==Bayer
+    flagFn(ui_DitherBayerSizeDropdown, showDitherControls && current_dither_algorithm == 1);
 }
 
 void ui_set_filter_mode(int mode)
@@ -534,6 +623,11 @@ int ui_get_pixel_size(void)
 {
     return current_pixel_size;
 }
+
+int ui_get_dither_bits(void) { return current_dither_bits; }
+bool ui_get_dither_grayscale(void) { return current_dither_grayscale; }
+int ui_get_dither_algorithm(void) { return current_dither_algorithm; }
+int ui_get_dither_bayer_size(void) { return current_dither_bayer_size; }
 
 void ui_get_palette(const uint32_t **palette, int *size)
 {
@@ -1098,6 +1192,62 @@ static void ui_event_PixelSizeDropdown(lv_event_t *e)
     }
 }
 
+static void ui_event_DitherBitsDropdown(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *dd = lv_event_get_target(e);
+    if (!dd)
+        return;
+    current_dither_bits = index_to_bits(static_cast<int>(lv_dropdown_get_selected(dd)));
+    if (ui_prefs_ready)
+        ui_prefs.putInt(UI_PREF_DITHER_BITS_KEY, current_dither_bits);
+}
+
+static void ui_event_DitherGrayscaleSwitch(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+        return;
+    current_dither_grayscale = lv_obj_has_state(target, LV_STATE_CHECKED);
+    if (ui_prefs_ready)
+        ui_prefs.putBool(UI_PREF_DITHER_GRAY_KEY, current_dither_grayscale);
+}
+
+static void ui_event_DitherAlgoDropdown(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *dd = lv_event_get_target(e);
+    if (!dd)
+        return;
+    current_dither_algorithm = clamp_dither_algorithm(static_cast<int>(lv_dropdown_get_selected(dd)));
+    if (ui_prefs_ready)
+        ui_prefs.putInt(UI_PREF_DITHER_ALGO_KEY, current_dither_algorithm);
+    // Show/hide bayer size dropdown depending on algorithm selection
+    if (ui_DitherBayerSizeDropdown)
+    {
+        if (current_dither_algorithm == 1)
+            lv_obj_clear_flag(ui_DitherBayerSizeDropdown, LV_OBJ_FLAG_HIDDEN);
+        else
+            lv_obj_add_flag(ui_DitherBayerSizeDropdown, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+static void ui_event_DitherBayerSizeDropdown(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *dd = lv_event_get_target(e);
+    if (!dd)
+        return;
+    current_dither_bayer_size = index_to_bayer_size(static_cast<int>(lv_dropdown_get_selected(dd)));
+    if (ui_prefs_ready)
+        ui_prefs.putInt(UI_PREF_DITHER_BAYER_KEY, current_dither_bayer_size);
+}
+
 void ui_event_FlashSwitch(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
@@ -1171,6 +1321,10 @@ void ui_HomeScreen_screen_init(void)
             current_palette_index = clamp_palette_index(ui_prefs.getInt(UI_PREF_PALETTE_KEY, current_palette_index));
             current_dithering = clamp_dither_type(ui_prefs.getInt(UI_PREF_DITHER_KEY, current_dithering));
             current_pixel_size = clamp_pixel_size(ui_prefs.getInt(UI_PREF_PIXEL_SIZE_KEY, current_pixel_size));
+            current_dither_bits = clamp_bits(ui_prefs.getInt(UI_PREF_DITHER_BITS_KEY, current_dither_bits));
+            current_dither_grayscale = ui_prefs.getBool(UI_PREF_DITHER_GRAY_KEY, current_dither_grayscale);
+            current_dither_algorithm = clamp_dither_algorithm(ui_prefs.getInt(UI_PREF_DITHER_ALGO_KEY, current_dither_algorithm));
+            current_dither_bayer_size = clamp_dither_bayer_size(ui_prefs.getInt(UI_PREF_DITHER_BAYER_KEY, current_dither_bayer_size));
             camera_led_open_flag = ui_prefs.getBool(UI_PREF_FLASH_KEY, camera_led_open_flag);
             current_zoom_level = ui_prefs.getInt(UI_PREF_ZOOM_LEVEL_KEY, 0); // Default to 1x zoom
         }
@@ -1293,7 +1447,7 @@ void ui_HomeScreen_screen_init(void)
 
     lv_dropdown_set_options_static(
         ui_FilterDropdown,
-        "No filter\nPixelate\nDithering\nEdge detect\nCRT");
+        "No filter\nPixelate\nDithering\nColor Palette\nEdge detect\nCRT");
     lv_dropdown_set_selected(ui_FilterDropdown, current_filter);
 
     /* Palette dropdown */
@@ -1357,6 +1511,61 @@ void ui_HomeScreen_screen_init(void)
         "4x4\n"
         "8x8");
     lv_dropdown_set_selected(ui_PixelSizeDropdown, pixel_size_to_index(current_pixel_size));
+
+    /* Dithering filter: Algorithm dropdown */
+    ui_DitherAlgoDropdown = lv_dropdown_create(ui_filter_column);
+    lv_obj_set_width(ui_DitherAlgoDropdown, LV_PCT(100));
+    lv_obj_set_height(ui_DitherAlgoDropdown, 42);
+    lv_obj_add_flag(ui_DitherAlgoDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS | LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_event_cb(ui_DitherAlgoDropdown, ui_event_DitherAlgoDropdown, LV_EVENT_ALL, NULL);
+    lv_obj_set_style_pad_ver(ui_DitherAlgoDropdown, 10, LV_PART_MAIN);
+    lv_dropdown_set_options_static(ui_DitherAlgoDropdown, "Floyd-Steinberg\nBayer");
+    lv_dropdown_set_selected(ui_DitherAlgoDropdown, current_dither_algorithm);
+
+    /* Dithering filter: Bayer size dropdown */
+    ui_DitherBayerSizeDropdown = lv_dropdown_create(ui_filter_column);
+    lv_obj_set_width(ui_DitherBayerSizeDropdown, LV_PCT(100));
+    lv_obj_set_height(ui_DitherBayerSizeDropdown, 42);
+    lv_obj_add_flag(ui_DitherBayerSizeDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS | LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_event_cb(ui_DitherBayerSizeDropdown, ui_event_DitherBayerSizeDropdown, LV_EVENT_ALL, NULL);
+    lv_obj_set_style_pad_ver(ui_DitherBayerSizeDropdown, 10, LV_PART_MAIN);
+    lv_dropdown_set_options_static(ui_DitherBayerSizeDropdown, "2x2\n4x4\n8x8");
+    lv_dropdown_set_selected(ui_DitherBayerSizeDropdown, bayer_size_to_index(current_dither_bayer_size));
+
+    /* Dithering filter: Bit depth dropdown (all channels) */
+    ui_DitherBitsDropdown = lv_dropdown_create(ui_filter_column);
+    lv_obj_set_width(ui_DitherBitsDropdown, LV_PCT(100));
+    lv_obj_set_height(ui_DitherBitsDropdown, 42);
+    lv_obj_add_flag(ui_DitherBitsDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS | LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_event_cb(ui_DitherBitsDropdown, ui_event_DitherBitsDropdown, LV_EVENT_ALL, NULL);
+    lv_obj_set_style_pad_ver(ui_DitherBitsDropdown, 10, LV_PART_MAIN);
+    lv_dropdown_set_options_static(ui_DitherBitsDropdown, "1 bit\n2 bits\n3 bits\n4 bits");
+    lv_dropdown_set_selected(ui_DitherBitsDropdown, bits_to_index(current_dither_bits));
+
+    /* Dithering filter: Grayscale switch row */
+    {
+        lv_obj_t *gray_row = lv_obj_create(ui_filter_column);
+        lv_obj_add_flag(gray_row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_width(gray_row, LV_PCT(100));
+        lv_obj_set_height(gray_row, LV_SIZE_CONTENT);
+        lv_obj_clear_flag(gray_row, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_bg_opa(gray_row, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(gray_row, 0, 0);
+        lv_obj_set_style_pad_all(gray_row, 0, 0);
+        lv_obj_set_style_pad_column(gray_row, 8, 0);
+        lv_obj_set_flex_flow(gray_row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(gray_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+        lv_obj_t *gray_label = lv_label_create(gray_row);
+        lv_label_set_text(gray_label, "Grayscale");
+
+        ui_DitherGrayscaleSwitch = lv_switch_create(gray_row);
+        lv_obj_set_size(ui_DitherGrayscaleSwitch, 60, 40);
+        if (current_dither_grayscale)
+            lv_obj_add_state(ui_DitherGrayscaleSwitch, LV_STATE_CHECKED);
+        lv_obj_add_event_cb(ui_DitherGrayscaleSwitch, ui_event_DitherGrayscaleSwitch, LV_EVENT_ALL, NULL);
+        ui_DitherGrayscaleRow = gray_row;
+    }
 
     // Apply initial dropdown visibility based on the restored/default filter
     ui_update_filter_dropdowns();

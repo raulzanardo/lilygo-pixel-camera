@@ -437,6 +437,9 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
         applyPixelate(&temp_frame, 8, false);
         break;
     case 2:
+        applyDithering(&temp_frame, ui_get_dither_bits(), ui_get_dither_bits(), ui_get_dither_bits(), ui_get_dither_grayscale(), ui_get_dither_algorithm(), ui_get_dither_bayer_size());
+        break;
+    case 3:
     {
         int palette_size = 0;
         const uint32_t *palette = nullptr;
@@ -449,10 +452,10 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
         applyColorPalette(working.data(), out_w, out_h, palette, palette_size, ui_get_dither_type(), ui_get_pixel_size(), 2, ui_get_auto_levels_enabled());
     }
     break;
-    case 3:
+    case 4:
         applyEdgeDetection(&temp_frame, 1);
         break;
-    case 4:
+    case 5:
         applyCRT(&temp_frame, ui_get_pixel_size());
         break;
     default:
