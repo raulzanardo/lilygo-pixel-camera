@@ -22,6 +22,8 @@
 #include <freertos/task.h>
 #undef IS_BIT_SET
 #include <XPowersLib.h>
+#include "esp_wifi.h"
+#include "esp_bt.h"
 
 extern "C"
 {
@@ -974,12 +976,14 @@ static bool ensure_pmu_ready()
 
 void setup()
 {
+    // Disable WiFi and Bluetooth to save power and reduce RF noise
+    esp_wifi_stop();
+    esp_wifi_deinit();
+    esp_bt_controller_disable();
+    esp_bt_controller_deinit();
 
     pinMode(BOARD_TFT_BL, OUTPUT);
     digitalWrite(BOARD_TFT_BL, LOW); // Backlight OFF
-
-    String LVGL_Arduino = "Hello Arduino! ";
-    LVGL_Arduino += String('V') + lv_version_major() + "." + lv_version_minor() + "." + lv_version_patch();
 
     camera_init();
     init_user_buttons();
