@@ -858,47 +858,55 @@ void camera_init(void)
         }
         else if (s->id.PID == OV3660_PID)
         {
-            s->set_hmirror(s, 0);
-            s->set_vflip(s, 1);
+            // ── 1. Fix high-quality frame-capture bug ──────────────────────
+            // At quality < ~10 the OV3660 can stall. These two register writes
+            // switch the pixel clock to manual mode and prevent the lock-up.
+            s->set_reg(s, 0x3824, 0x1f, 0x04); // PCLK divider – manual mode
+            s->set_reg(s, 0x460c, 0x02, 0x02); // VFIFO control – enable manual PCLK
+            delay(100);                        // let the sensor settle
 
-            // Disable slow ISP features to maximise FPS
-            s->set_lenc(s, 0);      // lens correction
-            s->set_raw_gma(s, 1);   // raw gamma (faster AE settling)
-            s->set_denoise(s, 0);   // noise reduction
-            s->set_sharpness(s, 0); // sharpness filter
-            s->set_dcw(s, 1);       // downsize crop window (keeps pipeline narrow)
+            // ── 3. Automatic White Balance ─────────────────────────────────
+            s->set_whitebal(s, 1); // enable AWB
+            s->set_awb_gain(s, 1); // enable AWB gain
+            s->set_wb_mode(s, 0);  // 0=Auto
 
+            // ── 4. Bad Pixel Correction & noise reduction ──────────────────
+            s->set_bpc(s, 1);     // bad pixel correction ON
+            s->set_wpc(s, 1);     // white pixel correction ON
+            s->set_dcw(s, 1);     // downsize/crop weighting ON
+            s->set_raw_gma(s, 1); // raw gamma ON (more natural tones)
+
+            // ── 5. Exposure & gain (UI-controlled) ────────────────────────
             bool aec2_enabled = ui_get_aec2_enabled();
-            s->set_aec2(s, aec2_enabled ? 1 : 0);
-
-            if (aec2_enabled)
-            {
-                s->set_bpc(s, 1);
-                s->set_wpc(s, 1);
-            }
-            else
-            {
-                s->set_bpc(s, 0); // black pixel correction
-                s->set_wpc(s, 0); // white pixel correction
-            }
-
-            bool gain_ctrl = ui_get_gain_ctrl_enabled();
-            s->set_gain_ctrl(s, gain_ctrl ? 1 : 0);
-
-            if (!gain_ctrl)
-            {
-                int agc_gain = ui_get_agc_gain();
-                s->set_agc_gain(s, agc_gain);
-            }
+            s->set_aec2(s, aec2_enabled ? 1 : 0); // AEC DSP
 
             bool exposure_ctrl = ui_get_exposure_ctrl_enabled();
             s->set_exposure_ctrl(s, exposure_ctrl ? 1 : 0);
-
             if (!exposure_ctrl)
             {
-                int aec_value = ui_get_aec_value();
-                s->set_aec_value(s, aec_value);
+                s->set_aec_value(s, ui_get_aec_value());
             }
+            s->set_ae_level(s, 0); // exposure bias: neutral
+
+            bool gain_ctrl = ui_get_gain_ctrl_enabled();
+            s->set_gain_ctrl(s, gain_ctrl ? 1 : 0);
+            if (!gain_ctrl)
+            {
+                s->set_agc_gain(s, ui_get_agc_gain());
+            }
+
+            // ── 6. Sharpness, saturation & contrast ───────────────────────
+            s->set_sharpness(s, 1);  // mild sharpening  (-2…+2)
+            s->set_saturation(s, 0); // colour saturation (-2…+2)
+            s->set_contrast(s, 0);   // contrast          (-2…+2)
+            s->set_brightness(s, 0); // brightness        (-2…+2)
+
+            // ── 7. Lens distortion correction ─────────────────────────────
+            s->set_lenc(s, 1); // lens correction ON
+
+            // ── 8. Orientation ────────────────────────────────────────────
+            s->set_hmirror(s, 0);
+            s->set_vflip(s, 1);
         }
         else
         {
