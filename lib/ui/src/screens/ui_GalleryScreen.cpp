@@ -26,6 +26,7 @@ static lv_obj_t *gallery_preview_img = nullptr;
 static lv_obj_t *gallery_preview_label = nullptr;
 static lv_obj_t *gallery_preview_back_btn = nullptr;
 static lv_obj_t *gallery_preview_delete_btn = nullptr;
+static bool gallery_preview_from_home = false;
 static lv_img_dsc_t gallery_img_dsc;
 static std::vector<uint8_t> gallery_img_buffer;
 static std::string gallery_img_path;
@@ -173,7 +174,13 @@ static void back_to_gallery_cb(lv_event_t *e)
     {
         return;
     }
-    if (gallery_screen)
+    if (gallery_preview_from_home || !gallery_screen)
+    {
+        gallery_preview_from_home = false;
+        lv_scr_load_anim(ui_HomeScreen, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200, 0, false);
+        ui_resume_camera_timer();
+    }
+    else
     {
         lv_scr_load_anim(gallery_screen, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200, 0, false);
     }
@@ -220,7 +227,6 @@ static bool load_png_to_dsc(const char *path)
         }
         return false;
     }
-
 
     const size_t pixel_count = (size_t)width * height;
     gallery_img_buffer.resize(pixel_count * sizeof(lv_color_t));
@@ -591,6 +597,7 @@ void ui_gallery_show_last_photo(void)
     // Get the first photo (most recent)
     const String &last_photo = gallery_photo_cache[0];
 
+    gallery_preview_from_home = true;
     ui_pause_camera_timer();
     show_photo_preview(last_photo.c_str());
 }
