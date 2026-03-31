@@ -888,7 +888,6 @@ void camera_init(void)
             {
                 s->set_aec_value(s, ui_get_aec_value());
             }
-            s->set_ae_level(s, 0); // exposure bias: neutral
 
             bool gain_ctrl = ui_get_gain_ctrl_enabled();
             s->set_gain_ctrl(s, gain_ctrl ? 1 : 0);
@@ -898,10 +897,12 @@ void camera_init(void)
             }
 
             // ── 6. Sharpness, saturation & contrast ───────────────────────
-            s->set_sharpness(s, 1);  // mild sharpening  (-2…+2)
-            s->set_saturation(s, 0); // colour saturation (-2…+2)
-            s->set_contrast(s, 0);   // contrast          (-2…+2)
-            s->set_brightness(s, 0); // brightness        (-2…+2)
+            bool dark_mode = ui_get_dark_mode_enabled();
+            s->set_sharpness(s, 1);                  // mild sharpening  (-2…+2)
+            s->set_saturation(s, dark_mode ? 1 : 0); // colour saturation (-2…+2)
+            s->set_contrast(s, dark_mode ? 1 : 0);   // contrast          (-2…+2)
+            s->set_brightness(s, dark_mode ? 1 : 0); // brightness        (-2…+2)
+            s->set_ae_level(s, dark_mode ? 2 : 0);   // exposure bias     (-2…+2)
 
             // ── 7. Lens distortion correction ─────────────────────────────
             s->set_lenc(s, 1); // lens correction ON

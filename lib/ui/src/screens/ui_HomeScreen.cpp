@@ -111,6 +111,7 @@ static const char *UI_PREF_DITHER_ALGO_KEY = "dith_algo";
 static const char *UI_PREF_DITHER_BAYER_KEY = "dith_bayer";
 static const char *UI_PREF_AUTO_ADJUST_KEY = "auto_adjust";
 static const char *UI_PREF_AUTO_LEVELS_KEY = "auto_levels";
+static const char *UI_PREF_DARK_MODE_KEY = "dark_mode";
 static const char *UI_PREF_ZOOM_LEVEL_KEY = "zoom_level";
 static const char *UI_PREF_SCREENSHOT_KEY = "screenshot_mode";
 
@@ -749,6 +750,18 @@ int ui_get_aec_value(void)
     return 800;
 }
 
+bool ui_get_dark_mode_enabled(void)
+{
+    Preferences prefs;
+    if (prefs.begin(UI_PREF_NAMESPACE, true))
+    {
+        bool val = prefs.getBool(UI_PREF_DARK_MODE_KEY, false);
+        prefs.end();
+        return val;
+    }
+    return false;
+}
+
 bool ui_get_auto_adjust_enabled(void)
 {
     Preferences prefs;
@@ -1011,6 +1024,21 @@ static void ui_event_AEC2Switch(lv_event_t *e)
     if (ui_prefs_ready)
     {
         ui_prefs.putBool(UI_PREF_AEC2_KEY, enabled);
+    }
+    ESP.restart();
+}
+
+static void ui_event_DarkModeSwitch(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+        return;
+    bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putBool(UI_PREF_DARK_MODE_KEY, enabled);
     }
     ESP.restart();
 }
@@ -1714,6 +1742,27 @@ void ui_HomeScreen_screen_init(void)
     if (ui_prefs_ready && ui_prefs.getBool(UI_PREF_EXPOSURE_CTRL_KEY, true))
     {
         lv_obj_add_state(aec_value_slider, LV_STATE_DISABLED);
+    }
+
+    // --- Dark Mode Switch ---
+    lv_obj_t *dark_mode_row = lv_obj_create(ui_camera_settings_column);
+    lv_obj_set_width(dark_mode_row, LV_PCT(100));
+    lv_obj_set_height(dark_mode_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(dark_mode_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(dark_mode_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(dark_mode_row, 0, 0);
+    lv_obj_set_style_pad_all(dark_mode_row, 0, 0);
+    lv_obj_set_flex_flow(dark_mode_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(dark_mode_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *dark_mode_label = lv_label_create(dark_mode_row);
+    lv_label_set_text(dark_mode_label, "Dark");
+
+    lv_obj_t *dark_mode_switch = lv_switch_create(dark_mode_row);
+    lv_obj_add_event_cb(dark_mode_switch, ui_event_DarkModeSwitch, LV_EVENT_ALL, NULL);
+    if (ui_prefs_ready && ui_prefs.getBool(UI_PREF_DARK_MODE_KEY, false))
+    {
+        lv_obj_add_state(dark_mode_switch, LV_STATE_CHECKED);
     }
 
     /* Hide initially */
