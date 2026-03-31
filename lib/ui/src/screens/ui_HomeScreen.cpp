@@ -1310,6 +1310,7 @@ void ui_event_StorageSwitch(lv_event_t *e)
 
     if (enabled)
     {
+        ui_settings_set_back_btn_enabled(false);
         msc.vendorID("ESP32");
         msc.productID("USB_MSC");
         msc.productRevision("1.0");
@@ -1756,7 +1757,7 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_flex_align(dark_mode_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     lv_obj_t *dark_mode_label = lv_label_create(dark_mode_row);
-    lv_label_set_text(dark_mode_label, "Dark");
+    lv_label_set_text(dark_mode_label, "Dark mode");
 
     lv_obj_t *dark_mode_switch = lv_switch_create(dark_mode_row);
     lv_obj_add_event_cb(dark_mode_switch, ui_event_DarkModeSwitch, LV_EVENT_ALL, NULL);

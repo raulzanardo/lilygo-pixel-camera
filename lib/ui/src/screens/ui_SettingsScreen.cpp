@@ -401,6 +401,24 @@ lv_obj_t *ui_get_settings_screen(void)
     return ui_settings_screen;
 }
 
+void ui_settings_set_back_btn_enabled(bool enabled)
+{
+    if (!ui_settings_back_btn)
+        return;
+    if (enabled)
+    {
+        lv_obj_clear_state(ui_settings_back_btn, LV_STATE_DISABLED);
+        lv_obj_set_style_bg_color(ui_settings_back_btn, lv_palette_main(LV_PALETTE_GREY), 0);
+        lv_obj_set_style_bg_opa(ui_settings_back_btn, LV_OPA_COVER, 0);
+    }
+    else
+    {
+        lv_obj_add_state(ui_settings_back_btn, LV_STATE_DISABLED);
+        lv_obj_set_style_bg_color(ui_settings_back_btn, lv_palette_main(LV_PALETTE_GREY), 0);
+        lv_obj_set_style_bg_opa(ui_settings_back_btn, LV_OPA_40, 0);
+    }
+}
+
 void ui_settings_show(void)
 {
     build_settings_screen();
