@@ -76,6 +76,8 @@ static lv_obj_t *ui_DitherGrayscaleRow = NULL;
 static lv_obj_t *ui_DitherGrayscaleSwitch = NULL;
 static lv_obj_t *ui_MultiExposureFramesDropdown = NULL;
 static lv_obj_t *ui_MultiExposureBlendDropdown = NULL;
+static lv_obj_t *ui_MultiExposurePaletteRow = NULL;
+static lv_obj_t *ui_MultiExposurePaletteSwitch = NULL;
 static lv_obj_t *ui_photo_overlay_label = NULL;
 static lv_obj_t *ui_zoom_label = NULL;
 static lv_obj_t *ui_agc_gain_slider = NULL;
@@ -96,6 +98,7 @@ static int current_dither_algorithm = 0;
 static int current_dither_bayer_size = 4;
 static int current_multi_exposure_frames = 4;
 static int current_multi_exposure_blend_mode = 0;
+static bool current_multi_exposure_palette_enabled = false;
 
 static Preferences ui_prefs;
 static bool ui_prefs_ready = false;
@@ -116,6 +119,7 @@ static const char *UI_PREF_DITHER_ALGO_KEY = "dith_algo";
 static const char *UI_PREF_DITHER_BAYER_KEY = "dith_bayer";
 static const char *UI_PREF_MULTI_EXPOSURE_FRAMES_KEY = "mx_frames";
 static const char *UI_PREF_MULTI_EXPOSURE_BLEND_KEY = "mx_blend";
+static const char *UI_PREF_MULTI_EXPOSURE_PALETTE_KEY = "mx_palette";
 static const char *UI_PREF_AUTO_ADJUST_KEY = "auto_adjust";
 static const char *UI_PREF_AUTO_LEVELS_KEY = "auto_levels";
 static const char *UI_PREF_DARK_MODE_KEY = "dark_mode";
@@ -590,6 +594,12 @@ static void apply_selected_filter(camera_fb_t *frame)
         break;
     case CAMERA_FILTER_MULTI_EXPOSURE:
         applyMultipleExposure(frame, current_multi_exposure_frames, current_multi_exposure_blend_mode);
+        if (current_multi_exposure_palette_enabled)
+        {
+            int palette_size = 0;
+            const uint32_t *palette = get_current_palette(palette_size);
+            applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, current_dithering, current_pixel_size, 2, ui_get_auto_levels_enabled());
+        }
         break;
     case CAMERA_FILTER_NONE:
     default:
@@ -662,6 +672,7 @@ static void ui_update_filter_dropdowns()
     flagFn(ui_DitherGrayscaleRow, showDitherControls);
     flagFn(ui_MultiExposureFramesDropdown, showMultiExposureControls);
     flagFn(ui_MultiExposureBlendDropdown, showMultiExposureControls);
+    flagFn(ui_MultiExposurePaletteRow, showMultiExposureControls);
     // Bayer size only when dither controls visible AND algorithm==Bayer
     flagFn(ui_DitherBayerSizeDropdown, showDitherControls && current_dither_algorithm == 1);
 }
@@ -707,6 +718,7 @@ int ui_get_dither_algorithm(void) { return current_dither_algorithm; }
 int ui_get_dither_bayer_size(void) { return current_dither_bayer_size; }
 int ui_get_multi_exposure_frames(void) { return current_multi_exposure_frames; }
 int ui_get_multi_exposure_blend_mode(void) { return current_multi_exposure_blend_mode; }
+bool ui_get_multi_exposure_palette_enabled(void) { return current_multi_exposure_palette_enabled; }
 
 void ui_get_palette(const uint32_t **palette, int *size)
 {
@@ -1380,6 +1392,19 @@ static void ui_event_MultiExposureBlendDropdown(lv_event_t *e)
         ui_prefs.putInt(UI_PREF_MULTI_EXPOSURE_BLEND_KEY, current_multi_exposure_blend_mode);
 }
 
+static void ui_event_MultiExposurePaletteSwitch(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+        return;
+    current_multi_exposure_palette_enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+    if (ui_prefs_ready)
+        ui_prefs.putBool(UI_PREF_MULTI_EXPOSURE_PALETTE_KEY, current_multi_exposure_palette_enabled);
+    ui_update_filter_dropdowns();
+}
+
 void ui_event_FlashSwitch(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
@@ -1460,6 +1485,7 @@ void ui_HomeScreen_screen_init(void)
             current_dither_bayer_size = clamp_dither_bayer_size(ui_prefs.getInt(UI_PREF_DITHER_BAYER_KEY, current_dither_bayer_size));
             current_multi_exposure_frames = clamp_multi_exposure_frames(ui_prefs.getInt(UI_PREF_MULTI_EXPOSURE_FRAMES_KEY, current_multi_exposure_frames));
             current_multi_exposure_blend_mode = clamp_multi_exposure_blend_mode(ui_prefs.getInt(UI_PREF_MULTI_EXPOSURE_BLEND_KEY, current_multi_exposure_blend_mode));
+            current_multi_exposure_palette_enabled = ui_prefs.getBool(UI_PREF_MULTI_EXPOSURE_PALETTE_KEY, current_multi_exposure_palette_enabled);
             camera_led_open_flag = ui_prefs.getBool(UI_PREF_FLASH_KEY, camera_led_open_flag);
             current_zoom_level = ui_prefs.getInt(UI_PREF_ZOOM_LEVEL_KEY, 0); // Default to 1x zoom
         }
@@ -1664,6 +1690,27 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_style_pad_ver(ui_MultiExposureBlendDropdown, 10, LV_PART_MAIN);
     lv_dropdown_set_options_static(ui_MultiExposureBlendDropdown, "Average\nMotion trail");
     lv_dropdown_set_selected(ui_MultiExposureBlendDropdown, current_multi_exposure_blend_mode);
+
+    ui_MultiExposurePaletteRow = lv_obj_create(ui_filter_column);
+    lv_obj_add_flag(ui_MultiExposurePaletteRow, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_width(ui_MultiExposurePaletteRow, LV_PCT(100));
+    lv_obj_set_height(ui_MultiExposurePaletteRow, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(ui_MultiExposurePaletteRow, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_MultiExposurePaletteRow, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_MultiExposurePaletteRow, 0, 0);
+    lv_obj_set_style_pad_all(ui_MultiExposurePaletteRow, 0, 0);
+    lv_obj_set_style_pad_column(ui_MultiExposurePaletteRow, 8, 0);
+    lv_obj_set_flex_flow(ui_MultiExposurePaletteRow, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ui_MultiExposurePaletteRow, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *multi_palette_label = lv_label_create(ui_MultiExposurePaletteRow);
+    lv_label_set_text(multi_palette_label, "Use palette");
+
+    ui_MultiExposurePaletteSwitch = lv_switch_create(ui_MultiExposurePaletteRow);
+    lv_obj_set_size(ui_MultiExposurePaletteSwitch, 60, 40);
+    if (current_multi_exposure_palette_enabled)
+        lv_obj_add_state(ui_MultiExposurePaletteSwitch, LV_STATE_CHECKED);
+    lv_obj_add_event_cb(ui_MultiExposurePaletteSwitch, ui_event_MultiExposurePaletteSwitch, LV_EVENT_ALL, NULL);
 
     /* Dithering filter: Algorithm dropdown */
     ui_DitherAlgoDropdown = lv_dropdown_create(ui_filter_column);

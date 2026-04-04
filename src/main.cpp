@@ -518,6 +518,18 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
         break;
     case 6:
         applyMultipleExposure(&temp_frame, ui_get_multi_exposure_frames(), ui_get_multi_exposure_blend_mode());
+        if (ui_get_multi_exposure_palette_enabled())
+        {
+            int palette_size = 0;
+            const uint32_t *palette = nullptr;
+            ui_get_palette(&palette, &palette_size);
+            if (!palette || palette_size <= 0)
+            {
+                palette = PALETTE_CYBERPUNK;
+                palette_size = PALETTE_CYBERPUNK_SIZE;
+            }
+            applyColorPalette(working.data(), out_w, out_h, palette, palette_size, ui_get_dither_type(), ui_get_pixel_size(), 2, ui_get_auto_levels_enabled());
+        }
         break;
     default:
         break;
