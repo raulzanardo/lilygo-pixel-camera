@@ -1,6 +1,60 @@
 #include "filter.h"
 #include <esp_heap_caps.h>
 
+namespace
+{
+    uint16_t *g_multiExposureFrames = nullptr;
+    size_t g_multiExposurePixelCount = 0;
+    int g_multiExposureSlotCount = 0;
+    int g_multiExposureStoredFrames = 0;
+    int g_multiExposureNextSlot = 0;
+
+    void releaseMultiExposureBuffer()
+    {
+        if (g_multiExposureFrames)
+        {
+            heap_caps_free(g_multiExposureFrames);
+            g_multiExposureFrames = nullptr;
+        }
+        g_multiExposurePixelCount = 0;
+        g_multiExposureSlotCount = 0;
+        g_multiExposureStoredFrames = 0;
+        g_multiExposureNextSlot = 0;
+    }
+
+    bool ensureMultiExposureBuffer(size_t pixelCount, int frameCount)
+    {
+        if (pixelCount == 0 || frameCount < 2)
+        {
+            releaseMultiExposureBuffer();
+            return false;
+        }
+
+        if (g_multiExposureFrames && g_multiExposurePixelCount == pixelCount && g_multiExposureSlotCount == frameCount)
+        {
+            return true;
+        }
+
+        releaseMultiExposureBuffer();
+
+        size_t bytes = pixelCount * static_cast<size_t>(frameCount) * sizeof(uint16_t);
+        g_multiExposureFrames = static_cast<uint16_t *>(heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        if (!g_multiExposureFrames)
+        {
+            g_multiExposureFrames = static_cast<uint16_t *>(heap_caps_malloc(bytes, MALLOC_CAP_DEFAULT | MALLOC_CAP_8BIT));
+        }
+        if (!g_multiExposureFrames)
+        {
+            return false;
+        }
+
+        g_multiExposurePixelCount = pixelCount;
+        g_multiExposureSlotCount = frameCount;
+        memset(g_multiExposureFrames, 0, bytes);
+        return true;
+    }
+} // namespace
+
 //////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -1899,6 +1953,84 @@ void applyCRT(camera_fb_t *cameraFb, int pixelSize)
             }
         }
     }
+}
+
+void resetMultipleExposure()
+{
+    releaseMultiExposureBuffer();
+}
+
+void applyMultipleExposure(camera_fb_t *cameraFb, int frameCount, int blendMode)
+{
+    if (!cameraFb || !cameraFb->buf || frameCount < 2)
+    {
+        return;
+    }
+
+    size_t pixelCount = static_cast<size_t>(cameraFb->width) * cameraFb->height;
+    if (!ensureMultiExposureBuffer(pixelCount, frameCount))
+    {
+        return;
+    }
+
+    uint16_t *frameBuffer = reinterpret_cast<uint16_t *>(cameraFb->buf);
+    uint16_t *currentSlot = g_multiExposureFrames + (static_cast<size_t>(g_multiExposureNextSlot) * pixelCount);
+    memcpy(currentSlot, frameBuffer, pixelCount * sizeof(uint16_t));
+
+    if (g_multiExposureStoredFrames < frameCount)
+    {
+        g_multiExposureStoredFrames++;
+    }
+
+    const bool swapBytes = true;
+    for (size_t index = 0; index < pixelCount; ++index)
+    {
+        uint32_t redSum = 0;
+        uint32_t greenSum = 0;
+        uint32_t blueSum = 0;
+        uint32_t weightSum = 0;
+
+        for (int frameOffset = 0; frameOffset < g_multiExposureStoredFrames; ++frameOffset)
+        {
+            int slot = (g_multiExposureNextSlot - 1 - frameOffset + frameCount) % frameCount;
+            uint16_t px = g_multiExposureFrames[static_cast<size_t>(slot) * pixelCount + index];
+            if (swapBytes)
+            {
+                px = static_cast<uint16_t>((px << 8) | (px >> 8));
+            }
+
+            uint32_t weight = 1;
+            if (blendMode == 1)
+            {
+                weight = static_cast<uint32_t>(g_multiExposureStoredFrames - frameOffset);
+            }
+
+            redSum += (((px >> 11) & 0x1F) << 3) * weight;
+            greenSum += (((px >> 5) & 0x3F) << 2) * weight;
+            blueSum += ((px & 0x1F) << 3) * weight;
+            weightSum += weight;
+        }
+
+        if (weightSum == 0)
+        {
+            continue;
+        }
+
+        uint8_t red = static_cast<uint8_t>(redSum / weightSum);
+        uint8_t green = static_cast<uint8_t>(greenSum / weightSum);
+        uint8_t blue = static_cast<uint8_t>(blueSum / weightSum);
+
+        uint16_t blended = (static_cast<uint16_t>(red >> 3) << 11) |
+                           (static_cast<uint16_t>(green >> 2) << 5) |
+                           static_cast<uint16_t>(blue >> 3);
+        if (swapBytes)
+        {
+            blended = static_cast<uint16_t>((blended << 8) | (blended >> 8));
+        }
+        frameBuffer[index] = blended;
+    }
+
+    g_multiExposureNextSlot = (g_multiExposureNextSlot + 1) % frameCount;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////

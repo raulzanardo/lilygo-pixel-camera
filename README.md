@@ -92,6 +92,7 @@ The following ones are from the version I did with a M5Stack cores3 that has a d
 - **Color Palette**: Map each pixel to the nearest color in a palette, with optional dithering and pixel size grouping
 - **Edge Detection**: Sobel operator-based edge detection
 - **CRT Effect**: Retro CRT monitor simulation with RGB channel separation, scanline patterns, and adjustable pixel size
+- **Multi Exposure**: Temporal blend of the last few frames for a ghosted long-exposure look, with adjustable frame count and blend style
 
 ### Color Palettes
 
@@ -125,6 +126,7 @@ All user preferences are saved to non-volatile storage (NVS) and automatically r
 - Flash enabled state
 - Zoom level
 - Dithering options (algorithm, bits, grayscale, Bayer size)
+- Multi Exposure options (frame count and blend mode)
 - Camera sensor controls (AEC, AEC2, AGC gain, exposure value)
 - Auto-Adjust and Auto Levels toggles
 - Screenshot mode toggle
@@ -181,7 +183,7 @@ Edit `platformio.ini` to adjust:
 - **Status Bar**: Battery level (with charging indicator), USB status, and SD card free space
 - **Camera Preview**: Tap to cycle through zoom levels (1x → 2x → 4x); current zoom shown as overlay
 - **FPS Counter**: Real-time frames-per-second display
-- **Filter Dropdown**: Select real-time filter effect (None, Pixelate, Dithering, Color Palette, Edge, CRT)
+- **Filter Dropdown**: Select real-time filter effect (None, Pixelate, Dithering, Color Palette, Edge, CRT, Multi Exposure)
 - **Palette Dropdown**: Choose color palette (for Color Palette filter)
 - **Dithering Type**: Off, Floyd-Steinberg, Bayer (for Color Palette filter)
 - **Pixel Size**: 1×1, 2×2, 4×4, or 8×8 blocks (for Pixelate, Color Palette, and CRT filters)

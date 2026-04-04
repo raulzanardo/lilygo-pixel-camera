@@ -17,5 +17,7 @@ void applyColorReduction(camera_fb_t *cameraFb);
 void applyEdgeDetection(camera_fb_t *cameraFb, int mode = 1);
 void applyAutoAdjust(camera_fb_t *cameraFb);
 void applyCRT(camera_fb_t *cameraFb, int pixelSize = 1);
+void applyMultipleExposure(camera_fb_t *cameraFb, int frameCount = 4, int blendMode = 0);
+void resetMultipleExposure();
 
 #endif // FILTER_H

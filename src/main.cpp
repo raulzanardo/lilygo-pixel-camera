@@ -516,6 +516,9 @@ static bool rotate_and_filter_frame(camera_fb_t *frame, std::vector<uint16_t> &r
     case 5:
         applyCRT(&temp_frame, ui_get_pixel_size());
         break;
+    case 6:
+        applyMultipleExposure(&temp_frame, ui_get_multi_exposure_frames(), ui_get_multi_exposure_blend_mode());
+        break;
     default:
         break;
     }

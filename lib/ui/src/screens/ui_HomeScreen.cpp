@@ -34,7 +34,8 @@ typedef enum
     CAMERA_FILTER_DITHER,
     CAMERA_FILTER_COLOR_PALETTE,
     CAMERA_FILTER_EDGE,
-    CAMERA_FILTER_CRT
+    CAMERA_FILTER_CRT,
+    CAMERA_FILTER_MULTI_EXPOSURE
 } camera_filter_t;
 
 typedef struct
@@ -73,6 +74,8 @@ static lv_obj_t *ui_DitherBitsDropdown = NULL;
 static lv_obj_t *ui_DitherBayerSizeDropdown = NULL;
 static lv_obj_t *ui_DitherGrayscaleRow = NULL;
 static lv_obj_t *ui_DitherGrayscaleSwitch = NULL;
+static lv_obj_t *ui_MultiExposureFramesDropdown = NULL;
+static lv_obj_t *ui_MultiExposureBlendDropdown = NULL;
 static lv_obj_t *ui_photo_overlay_label = NULL;
 static lv_obj_t *ui_zoom_label = NULL;
 static lv_obj_t *ui_agc_gain_slider = NULL;
@@ -91,6 +94,8 @@ static int current_dither_bits = 1;
 static bool current_dither_grayscale = false;
 static int current_dither_algorithm = 0;
 static int current_dither_bayer_size = 4;
+static int current_multi_exposure_frames = 4;
+static int current_multi_exposure_blend_mode = 0;
 
 static Preferences ui_prefs;
 static bool ui_prefs_ready = false;
@@ -109,6 +114,8 @@ static const char *UI_PREF_DITHER_BITS_KEY = "dith_bits";
 static const char *UI_PREF_DITHER_GRAY_KEY = "dith_gray";
 static const char *UI_PREF_DITHER_ALGO_KEY = "dith_algo";
 static const char *UI_PREF_DITHER_BAYER_KEY = "dith_bayer";
+static const char *UI_PREF_MULTI_EXPOSURE_FRAMES_KEY = "mx_frames";
+static const char *UI_PREF_MULTI_EXPOSURE_BLEND_KEY = "mx_blend";
 static const char *UI_PREF_AUTO_ADJUST_KEY = "auto_adjust";
 static const char *UI_PREF_AUTO_LEVELS_KEY = "auto_levels";
 static const char *UI_PREF_DARK_MODE_KEY = "dark_mode";
@@ -421,6 +428,61 @@ static inline int clamp_pixel_size(int v)
     }
 }
 
+static inline int clamp_multi_exposure_frames(int v)
+{
+    switch (v)
+    {
+    case 2:
+    case 4:
+    case 6:
+    case 8:
+        return v;
+    default:
+        return 4;
+    }
+}
+
+static inline int multi_exposure_frames_to_index(int v)
+{
+    switch (v)
+    {
+    case 2:
+        return 0;
+    case 6:
+        return 2;
+    case 8:
+        return 3;
+    case 4:
+    default:
+        return 1;
+    }
+}
+
+static inline int index_to_multi_exposure_frames(int idx)
+{
+    switch (idx)
+    {
+    case 0:
+        return 2;
+    case 2:
+        return 6;
+    case 3:
+        return 8;
+    case 1:
+    default:
+        return 4;
+    }
+}
+
+static inline int clamp_multi_exposure_blend_mode(int v)
+{
+    if (v < 0 || v > 1)
+    {
+        return 0;
+    }
+    return v;
+}
+
 static inline int pixel_size_to_index(int v)
 {
     switch (v)
@@ -526,6 +588,9 @@ static void apply_selected_filter(camera_fb_t *frame)
     case CAMERA_FILTER_CRT:
         applyCRT(frame, current_pixel_size);
         break;
+    case CAMERA_FILTER_MULTI_EXPOSURE:
+        applyMultipleExposure(frame, current_multi_exposure_frames, current_multi_exposure_blend_mode);
+        break;
     case CAMERA_FILTER_NONE:
     default:
         break;
@@ -541,6 +606,7 @@ static void ui_update_filter_dropdowns()
     bool showDither = false;
     bool showPixelSize = false;
     bool showDitherControls = false;
+    bool showMultiExposureControls = false;
 
     switch (current_filter)
     {
@@ -558,6 +624,8 @@ static void ui_update_filter_dropdowns()
     case CAMERA_FILTER_CRT:
         showPixelSize = true;
         break;
+    case CAMERA_FILTER_MULTI_EXPOSURE:
+        showMultiExposureControls = true;
     case CAMERA_FILTER_NONE:
     case CAMERA_FILTER_EDGE:
     default:
@@ -592,16 +660,24 @@ static void ui_update_filter_dropdowns()
     flagFn(ui_DitherAlgoDropdown, showDitherControls);
     flagFn(ui_DitherBitsDropdown, showDitherControls);
     flagFn(ui_DitherGrayscaleRow, showDitherControls);
+    flagFn(ui_MultiExposureFramesDropdown, showMultiExposureControls);
+    flagFn(ui_MultiExposureBlendDropdown, showMultiExposureControls);
     // Bayer size only when dither controls visible AND algorithm==Bayer
     flagFn(ui_DitherBayerSizeDropdown, showDitherControls && current_dither_algorithm == 1);
 }
 
 void ui_set_filter_mode(int mode)
 {
-    if (mode < CAMERA_FILTER_NONE || mode > CAMERA_FILTER_CRT)
+    if (mode < CAMERA_FILTER_NONE || mode > CAMERA_FILTER_MULTI_EXPOSURE)
     {
         mode = CAMERA_FILTER_NONE;
     }
+
+    if (current_filter != (camera_filter_t)mode)
+    {
+        resetMultipleExposure();
+    }
+
     current_filter = (camera_filter_t)mode;
     if (ui_prefs_ready)
     {
@@ -629,6 +705,8 @@ int ui_get_dither_bits(void) { return current_dither_bits; }
 bool ui_get_dither_grayscale(void) { return current_dither_grayscale; }
 int ui_get_dither_algorithm(void) { return current_dither_algorithm; }
 int ui_get_dither_bayer_size(void) { return current_dither_bayer_size; }
+int ui_get_multi_exposure_frames(void) { return current_multi_exposure_frames; }
+int ui_get_multi_exposure_blend_mode(void) { return current_multi_exposure_blend_mode; }
 
 void ui_get_palette(const uint32_t **palette, int *size)
 {
@@ -1276,6 +1354,32 @@ static void ui_event_DitherBayerSizeDropdown(lv_event_t *e)
         ui_prefs.putInt(UI_PREF_DITHER_BAYER_KEY, current_dither_bayer_size);
 }
 
+static void ui_event_MultiExposureFramesDropdown(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *dd = lv_event_get_target(e);
+    if (!dd)
+        return;
+    current_multi_exposure_frames = index_to_multi_exposure_frames(static_cast<int>(lv_dropdown_get_selected(dd)));
+    resetMultipleExposure();
+    if (ui_prefs_ready)
+        ui_prefs.putInt(UI_PREF_MULTI_EXPOSURE_FRAMES_KEY, current_multi_exposure_frames);
+}
+
+static void ui_event_MultiExposureBlendDropdown(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *dd = lv_event_get_target(e);
+    if (!dd)
+        return;
+    current_multi_exposure_blend_mode = clamp_multi_exposure_blend_mode(static_cast<int>(lv_dropdown_get_selected(dd)));
+    resetMultipleExposure();
+    if (ui_prefs_ready)
+        ui_prefs.putInt(UI_PREF_MULTI_EXPOSURE_BLEND_KEY, current_multi_exposure_blend_mode);
+}
+
 void ui_event_FlashSwitch(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
@@ -1354,6 +1458,8 @@ void ui_HomeScreen_screen_init(void)
             current_dither_grayscale = ui_prefs.getBool(UI_PREF_DITHER_GRAY_KEY, current_dither_grayscale);
             current_dither_algorithm = clamp_dither_algorithm(ui_prefs.getInt(UI_PREF_DITHER_ALGO_KEY, current_dither_algorithm));
             current_dither_bayer_size = clamp_dither_bayer_size(ui_prefs.getInt(UI_PREF_DITHER_BAYER_KEY, current_dither_bayer_size));
+            current_multi_exposure_frames = clamp_multi_exposure_frames(ui_prefs.getInt(UI_PREF_MULTI_EXPOSURE_FRAMES_KEY, current_multi_exposure_frames));
+            current_multi_exposure_blend_mode = clamp_multi_exposure_blend_mode(ui_prefs.getInt(UI_PREF_MULTI_EXPOSURE_BLEND_KEY, current_multi_exposure_blend_mode));
             camera_led_open_flag = ui_prefs.getBool(UI_PREF_FLASH_KEY, camera_led_open_flag);
             current_zoom_level = ui_prefs.getInt(UI_PREF_ZOOM_LEVEL_KEY, 0); // Default to 1x zoom
         }
@@ -1476,7 +1582,7 @@ void ui_HomeScreen_screen_init(void)
 
     lv_dropdown_set_options_static(
         ui_FilterDropdown,
-        "No filter\nPixelate\nDithering\nColor Palette\nEdge detect\nCRT");
+        "No filter\nPixelate\nDithering\nColor Palette\nEdge detect\nCRT\nMulti Exposure");
     lv_dropdown_set_selected(ui_FilterDropdown, current_filter);
 
     /* Palette dropdown */
@@ -1540,6 +1646,24 @@ void ui_HomeScreen_screen_init(void)
         "4x4\n"
         "8x8");
     lv_dropdown_set_selected(ui_PixelSizeDropdown, pixel_size_to_index(current_pixel_size));
+
+    ui_MultiExposureFramesDropdown = lv_dropdown_create(ui_filter_column);
+    lv_obj_set_width(ui_MultiExposureFramesDropdown, LV_PCT(100));
+    lv_obj_set_height(ui_MultiExposureFramesDropdown, 42);
+    lv_obj_add_flag(ui_MultiExposureFramesDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS | LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_event_cb(ui_MultiExposureFramesDropdown, ui_event_MultiExposureFramesDropdown, LV_EVENT_ALL, NULL);
+    lv_obj_set_style_pad_ver(ui_MultiExposureFramesDropdown, 10, LV_PART_MAIN);
+    lv_dropdown_set_options_static(ui_MultiExposureFramesDropdown, "2 frames\n4 frames\n6 frames\n8 frames");
+    lv_dropdown_set_selected(ui_MultiExposureFramesDropdown, multi_exposure_frames_to_index(current_multi_exposure_frames));
+
+    ui_MultiExposureBlendDropdown = lv_dropdown_create(ui_filter_column);
+    lv_obj_set_width(ui_MultiExposureBlendDropdown, LV_PCT(100));
+    lv_obj_set_height(ui_MultiExposureBlendDropdown, 42);
+    lv_obj_add_flag(ui_MultiExposureBlendDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS | LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_event_cb(ui_MultiExposureBlendDropdown, ui_event_MultiExposureBlendDropdown, LV_EVENT_ALL, NULL);
+    lv_obj_set_style_pad_ver(ui_MultiExposureBlendDropdown, 10, LV_PART_MAIN);
+    lv_dropdown_set_options_static(ui_MultiExposureBlendDropdown, "Average\nMotion trail");
+    lv_dropdown_set_selected(ui_MultiExposureBlendDropdown, current_multi_exposure_blend_mode);
 
     /* Dithering filter: Algorithm dropdown */
     ui_DitherAlgoDropdown = lv_dropdown_create(ui_filter_column);
@@ -1847,6 +1971,8 @@ void ui_HomeScreen_screen_destroy(void)
     }
     if (ui_HomeScreen)
         lv_obj_del(ui_HomeScreen);
+
+    resetMultipleExposure();
 
     // NULL screen variables
     ui_HomeScreen = NULL;

@@ -29,6 +29,8 @@ extern "C"
   bool ui_get_dither_grayscale(void);
   int ui_get_dither_algorithm(void);
   int ui_get_dither_bayer_size(void);
+  int ui_get_multi_exposure_frames(void);
+  int ui_get_multi_exposure_blend_mode(void);
   void ui_show_photo_overlay(const char *text);
 
   void ui_pause_camera_timer(void);
