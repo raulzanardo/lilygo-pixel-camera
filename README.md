@@ -4,6 +4,12 @@ A feature-rich camera application for the LilyGo T-Display S3 Pro with OV3660 ca
 
 **Inspired by:** Carlo Andreini's [Pixless Camera](https://www.kickstarter.com/projects/carloandreini/pixless-camera) - a 0.03MP camera that captures charming pixel-art style photos, reminiscent of the iconic Game Boy Camera.
 
+## Featured on Hackaday
+
+This project was featured on Hackaday in the article [Pixel Camera Puts Lo-Fi Images In The Palm Of Your Hand](https://hackaday.com/2026/04/02/pixel-camera-puts-lo-fi-images-in-the-palm-of-your-hand/), published on April 2, 2026.
+
+The post highlights the LilyGo T-Display S3 Pro hardware, the OV3660 camera swap, the real-time pixel-art filter pipeline, microSD photo storage, the built-in touch gallery, and USB Mass Storage support.
+
 ## Hardware
 
 <img src="images/LilyGo%20T-Display%20S3%20Pro.png" alt="LilyGo T-Display S3 Pro" width="360" />
