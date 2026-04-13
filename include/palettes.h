@@ -242,3 +242,24 @@ const uint32_t PALETTE_RGB[] = {
     0xFFFFFF  // White
 };
 const int PALETTE_RGB_SIZE = 8;
+
+// Palette 18: Elevate (16 colors)
+const uint32_t PALETTE_ELEVATE[] = {
+    0x251c06, // 1  dark olive
+    0xdfdec8, // 2  warm ivory
+    0x5a300a, // 3  brown
+    0xb6240a, // 4  brick red
+    0x2a2d7a, // 5  deep blue
+    0xe8ad84, // 6  peach
+    0xf2e467, // 7  yellow
+    0x2a8700, // 8  green
+    0x090000, // 9  near black
+    0x7ca7c0, // 10 desaturated sky
+    0xd0c936, // 11 lime yellow
+    0x184800, // 12 forest green
+    0xa03dd0, // 13 purple
+    0x70000e, // 14 burgundy
+    0x3a1969, // 15 indigo
+    0x4cc0d0  // 16 cyan
+};
+const int PALETTE_ELEVATE_SIZE = 16;
