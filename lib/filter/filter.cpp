@@ -800,12 +800,20 @@ void applyColorPalette(uint16_t *imageBuffer, int width, int height, const uint3
     int bayerIntOffsets[8][8] = {};
     if (dithering == 2)
     {
+        // Bayer in palette mode tends to look harsher/brighter than error-diffusion.
+        // Keep the ordered pattern, but reduce amplitude and add a slight dark bias.
+        const int bayerStrengthPct = 70;
+        const int bayerBias = -6;
         for (int by = 0; by < bayerSize; by++)
             for (int bx = 0; bx < bayerSize; bx++)
             {
                 int bv = (bayerSize == 2) ? bayer2x2[by][bx] : (bayerSize == 4) ? bayer4x4[by][bx]
                                                                                 : bayer8x8[by][bx];
-                bayerIntOffsets[by][bx] = (bv * 255 / bayerDivisor) - 127;
+                // Centered-bin normalization keeps ordered dithering balanced while avoiding
+                // the very strong extremes at small matrices (notably 2x2).
+                // Formula: ((2*bv + 1)/(2*N^2) - 0.5) * 255
+                int baseOffset = (((2 * bv + 1) * 255) / (2 * bayerDivisor)) - 127;
+                bayerIntOffsets[by][bx] = (baseOffset * bayerStrengthPct) / 100 + bayerBias;
             }
     }
 
