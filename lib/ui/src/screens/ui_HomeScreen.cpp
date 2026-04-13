@@ -69,6 +69,9 @@ static lv_obj_t *ui_filter_column = NULL;
 static lv_obj_t *ui_camera_settings_column = NULL;
 static lv_obj_t *ui_DitherDropdown = NULL;
 static lv_obj_t *ui_PixelSizeDropdown = NULL;
+static lv_obj_t *ui_PaletteBayerRow = NULL;
+static lv_obj_t *ui_PaletteBayerPixelDropdown = NULL;
+static lv_obj_t *ui_PaletteBayerSizeDropdown = NULL;
 static lv_obj_t *ui_DitherAlgoDropdown = NULL;
 static lv_obj_t *ui_DitherBitsDropdown = NULL;
 static lv_obj_t *ui_DitherBayerSizeDropdown = NULL;
@@ -96,6 +99,8 @@ static int current_dither_bits = 1;
 static bool current_dither_grayscale = false;
 static int current_dither_algorithm = 0;
 static int current_dither_bayer_size = 4;
+static int current_palette_bayer_ui = 4;
+static int current_palette_pixel_ui = 1;
 static int current_multi_exposure_frames = 4;
 static int current_multi_exposure_blend_mode = 0;
 static bool current_multi_exposure_palette_enabled = false;
@@ -117,6 +122,8 @@ static const char *UI_PREF_DITHER_BITS_KEY = "dith_bits";
 static const char *UI_PREF_DITHER_GRAY_KEY = "dith_gray";
 static const char *UI_PREF_DITHER_ALGO_KEY = "dith_algo";
 static const char *UI_PREF_DITHER_BAYER_KEY = "dith_bayer";
+static const char *UI_PREF_PALETTE_BAYER_UI_KEY = "pal_bayer_ui";
+static const char *UI_PREF_PALETTE_PIXEL_UI_KEY = "pal_px_ui";
 static const char *UI_PREF_MULTI_EXPOSURE_FRAMES_KEY = "mx_frames";
 static const char *UI_PREF_MULTI_EXPOSURE_BLEND_KEY = "mx_blend";
 static const char *UI_PREF_MULTI_EXPOSURE_PALETTE_KEY = "mx_palette";
@@ -432,6 +439,90 @@ static inline int clamp_pixel_size(int v)
     }
 }
 
+static inline int clamp_palette_pixel_ui(int v)
+{
+    if (v < 1)
+        return 1;
+    if (v > 8)
+        return 8;
+    return v;
+}
+
+static inline int clamp_palette_bayer_ui(int v)
+{
+    switch (v)
+    {
+    case 1:
+    case 2:
+    case 4:
+    case 8:
+    case 16:
+        return v;
+    default:
+        return 4;
+    }
+}
+
+static inline int palette_bayer_ui_to_index(int v)
+{
+    switch (clamp_palette_bayer_ui(v))
+    {
+    case 1:
+        return 0;
+    case 2:
+        return 1;
+    case 8:
+        return 3;
+    case 16:
+        return 4;
+    case 4:
+    default:
+        return 2;
+    }
+}
+
+static inline int index_to_palette_bayer_ui(int idx)
+{
+    switch (idx)
+    {
+    case 0:
+        return 1;
+    case 1:
+        return 2;
+    case 3:
+        return 8;
+    case 4:
+        return 16;
+    case 2:
+    default:
+        return 4;
+    }
+}
+
+// Keep filter-side pixelSize semantics unchanged (1,2,4,8) while exposing UI 1..8.
+static inline int palette_ui_to_pixel_size(int ui)
+{
+    ui = clamp_palette_pixel_ui(ui);
+    if (ui <= 2)
+        return 1;
+    if (ui <= 4)
+        return 2;
+    if (ui <= 6)
+        return 4;
+    return 8;
+}
+
+// Keep filter-side bayerSize semantics unchanged (2,4,8) while exposing UI 1..16.
+static inline int palette_ui_to_bayer_size(int ui)
+{
+    ui = clamp_palette_bayer_ui(ui);
+    if (ui <= 2)
+        return 2;
+    if (ui <= 4)
+        return 4;
+    return 8;
+}
+
 static inline int clamp_multi_exposure_frames(int v)
 {
     switch (v)
@@ -583,7 +674,7 @@ static void apply_selected_filter(camera_fb_t *frame)
     {
         int palette_size = 0;
         const uint32_t *palette = get_current_palette(palette_size);
-        applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, current_dithering, current_pixel_size, 2, ui_get_auto_levels_enabled());
+        applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, current_dithering, current_pixel_size, palette_ui_to_bayer_size(current_palette_bayer_ui), ui_get_auto_levels_enabled());
     }
     break;
     case CAMERA_FILTER_EDGE:
@@ -598,7 +689,7 @@ static void apply_selected_filter(camera_fb_t *frame)
         {
             int palette_size = 0;
             const uint32_t *palette = get_current_palette(palette_size);
-            applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, current_dithering, current_pixel_size, 2, ui_get_auto_levels_enabled());
+            applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, current_dithering, current_pixel_size, palette_ui_to_bayer_size(current_palette_bayer_ui), ui_get_auto_levels_enabled());
         }
         break;
     case CAMERA_FILTER_NONE:
@@ -617,6 +708,7 @@ static void ui_update_filter_dropdowns()
     bool showPixelSize = false;
     bool showDitherControls = false;
     bool showMultiExposureControls = false;
+    bool showPaletteBayerRow = false;
 
     switch (current_filter)
     {
@@ -630,6 +722,7 @@ static void ui_update_filter_dropdowns()
         showPalette = true;
         showDither = true;
         showPixelSize = true;
+        showPaletteBayerRow = (current_dithering == 2);
         break;
     case CAMERA_FILTER_CRT:
         showPixelSize = true;
@@ -652,10 +745,26 @@ static void ui_update_filter_dropdowns()
     else
         lv_obj_add_flag(ui_DitherDropdown, LV_OBJ_FLAG_HIDDEN);
 
-    if (showPixelSize)
+    if (showPixelSize && !showPaletteBayerRow)
         lv_obj_clear_flag(ui_PixelSizeDropdown, LV_OBJ_FLAG_HIDDEN);
     else
         lv_obj_add_flag(ui_PixelSizeDropdown, LV_OBJ_FLAG_HIDDEN);
+
+    if (ui_PaletteBayerRow)
+    {
+        if (ui_PaletteBayerPixelDropdown)
+        {
+            lv_dropdown_set_selected(ui_PaletteBayerPixelDropdown, clamp_palette_pixel_ui(current_palette_pixel_ui) - 1);
+        }
+        if (ui_PaletteBayerSizeDropdown)
+        {
+            lv_dropdown_set_selected(ui_PaletteBayerSizeDropdown, palette_bayer_ui_to_index(current_palette_bayer_ui));
+        }
+        if (showPaletteBayerRow)
+            lv_obj_clear_flag(ui_PaletteBayerRow, LV_OBJ_FLAG_HIDDEN);
+        else
+            lv_obj_add_flag(ui_PaletteBayerRow, LV_OBJ_FLAG_HIDDEN);
+    }
 
     // Dithering filter dedicated controls
     auto flagFn = [](lv_obj_t *obj, bool show)
@@ -1285,6 +1394,7 @@ static void ui_event_DitherDropdown(lv_event_t *e)
     {
         ui_prefs.putInt(UI_PREF_DITHER_KEY, current_dithering);
     }
+    ui_update_filter_dropdowns();
 }
 
 static void ui_event_PixelSizeDropdown(lv_event_t *e)
@@ -1304,9 +1414,50 @@ static void ui_event_PixelSizeDropdown(lv_event_t *e)
     if (sel >= (sizeof(kPixelOptions) / sizeof(kPixelOptions[0])))
         sel = 0;
     current_pixel_size = clamp_pixel_size(kPixelOptions[sel]);
+    current_palette_pixel_ui = clamp_palette_pixel_ui(current_pixel_size);
     if (ui_prefs_ready)
     {
         ui_prefs.putInt(UI_PREF_PIXEL_SIZE_KEY, current_pixel_size);
+        ui_prefs.putInt(UI_PREF_PALETTE_PIXEL_UI_KEY, current_palette_pixel_ui);
+    }
+}
+
+static void ui_event_PaletteBayerPixelDropdown(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *dd = lv_event_get_target(e);
+    if (!dd)
+        return;
+
+    current_palette_pixel_ui = clamp_palette_pixel_ui(static_cast<int>(lv_dropdown_get_selected(dd)) + 1);
+    current_pixel_size = clamp_pixel_size(palette_ui_to_pixel_size(current_palette_pixel_ui));
+
+    if (ui_PixelSizeDropdown)
+    {
+        lv_dropdown_set_selected(ui_PixelSizeDropdown, pixel_size_to_index(current_pixel_size));
+    }
+
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putInt(UI_PREF_PALETTE_PIXEL_UI_KEY, current_palette_pixel_ui);
+        ui_prefs.putInt(UI_PREF_PIXEL_SIZE_KEY, current_pixel_size);
+    }
+}
+
+static void ui_event_PaletteBayerSizeDropdown(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *dd = lv_event_get_target(e);
+    if (!dd)
+        return;
+
+    current_palette_bayer_ui = index_to_palette_bayer_ui(static_cast<int>(lv_dropdown_get_selected(dd)));
+
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putInt(UI_PREF_PALETTE_BAYER_UI_KEY, current_palette_bayer_ui);
     }
 }
 
@@ -1479,10 +1630,12 @@ void ui_HomeScreen_screen_init(void)
             current_palette_index = clamp_palette_index(ui_prefs.getInt(UI_PREF_PALETTE_KEY, current_palette_index));
             current_dithering = clamp_dither_type(ui_prefs.getInt(UI_PREF_DITHER_KEY, current_dithering));
             current_pixel_size = clamp_pixel_size(ui_prefs.getInt(UI_PREF_PIXEL_SIZE_KEY, current_pixel_size));
+            current_palette_pixel_ui = clamp_palette_pixel_ui(ui_prefs.getInt(UI_PREF_PALETTE_PIXEL_UI_KEY, current_pixel_size));
             current_dither_bits = clamp_bits(ui_prefs.getInt(UI_PREF_DITHER_BITS_KEY, current_dither_bits));
             current_dither_grayscale = ui_prefs.getBool(UI_PREF_DITHER_GRAY_KEY, current_dither_grayscale);
             current_dither_algorithm = clamp_dither_algorithm(ui_prefs.getInt(UI_PREF_DITHER_ALGO_KEY, current_dither_algorithm));
             current_dither_bayer_size = clamp_dither_bayer_size(ui_prefs.getInt(UI_PREF_DITHER_BAYER_KEY, current_dither_bayer_size));
+            current_palette_bayer_ui = clamp_palette_bayer_ui(ui_prefs.getInt(UI_PREF_PALETTE_BAYER_UI_KEY, current_palette_bayer_ui));
             current_multi_exposure_frames = clamp_multi_exposure_frames(ui_prefs.getInt(UI_PREF_MULTI_EXPOSURE_FRAMES_KEY, current_multi_exposure_frames));
             current_multi_exposure_blend_mode = clamp_multi_exposure_blend_mode(ui_prefs.getInt(UI_PREF_MULTI_EXPOSURE_BLEND_KEY, current_multi_exposure_blend_mode));
             current_multi_exposure_palette_enabled = ui_prefs.getBool(UI_PREF_MULTI_EXPOSURE_PALETTE_KEY, current_multi_exposure_palette_enabled);
@@ -1672,6 +1825,36 @@ void ui_HomeScreen_screen_init(void)
         "4x4\n"
         "8x8");
     lv_dropdown_set_selected(ui_PixelSizeDropdown, pixel_size_to_index(current_pixel_size));
+
+    ui_PaletteBayerRow = lv_obj_create(ui_filter_column);
+    lv_obj_add_flag(ui_PaletteBayerRow, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_width(ui_PaletteBayerRow, LV_PCT(100));
+    lv_obj_set_height(ui_PaletteBayerRow, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(ui_PaletteBayerRow, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_PaletteBayerRow, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_PaletteBayerRow, 0, 0);
+    lv_obj_set_style_pad_all(ui_PaletteBayerRow, 0, 0);
+    lv_obj_set_style_pad_column(ui_PaletteBayerRow, 8, 0);
+    lv_obj_set_flex_flow(ui_PaletteBayerRow, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ui_PaletteBayerRow, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    ui_PaletteBayerPixelDropdown = lv_dropdown_create(ui_PaletteBayerRow);
+    lv_obj_set_width(ui_PaletteBayerPixelDropdown, LV_PCT(48));
+    lv_obj_set_height(ui_PaletteBayerPixelDropdown, 42);
+    lv_obj_add_flag(ui_PaletteBayerPixelDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    lv_obj_add_event_cb(ui_PaletteBayerPixelDropdown, ui_event_PaletteBayerPixelDropdown, LV_EVENT_ALL, NULL);
+    lv_obj_set_style_pad_ver(ui_PaletteBayerPixelDropdown, 10, LV_PART_MAIN);
+    lv_dropdown_set_options_static(ui_PaletteBayerPixelDropdown, "Pixel 1\nPixel 2\nPixel 3\nPixel 4\nPixel 5\nPixel 6\nPixel 7\nPixel 8");
+    lv_dropdown_set_selected(ui_PaletteBayerPixelDropdown, current_palette_pixel_ui - 1);
+
+    ui_PaletteBayerSizeDropdown = lv_dropdown_create(ui_PaletteBayerRow);
+    lv_obj_set_width(ui_PaletteBayerSizeDropdown, LV_PCT(48));
+    lv_obj_set_height(ui_PaletteBayerSizeDropdown, 42);
+    lv_obj_add_flag(ui_PaletteBayerSizeDropdown, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    lv_obj_add_event_cb(ui_PaletteBayerSizeDropdown, ui_event_PaletteBayerSizeDropdown, LV_EVENT_ALL, NULL);
+    lv_obj_set_style_pad_ver(ui_PaletteBayerSizeDropdown, 10, LV_PART_MAIN);
+    lv_dropdown_set_options_static(ui_PaletteBayerSizeDropdown, "1x1\n2x2\n4x4\n8x8\n16x16");
+    lv_dropdown_set_selected(ui_PaletteBayerSizeDropdown, palette_bayer_ui_to_index(current_palette_bayer_ui));
 
     ui_MultiExposureFramesDropdown = lv_dropdown_create(ui_filter_column);
     lv_obj_set_width(ui_MultiExposureFramesDropdown, LV_PCT(100));
@@ -2024,6 +2207,10 @@ void ui_HomeScreen_screen_destroy(void)
     // NULL screen variables
     ui_HomeScreen = NULL;
     ui_FilterDropdown = NULL;
+    ui_PixelSizeDropdown = NULL;
+    ui_PaletteBayerRow = NULL;
+    ui_PaletteBayerPixelDropdown = NULL;
+    ui_PaletteBayerSizeDropdown = NULL;
     ui_Image1 = NULL;
     ui_status_sd_label = NULL;
     ui_status_batt_label = NULL;
