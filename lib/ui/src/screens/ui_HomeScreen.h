@@ -32,6 +32,7 @@ extern "C"
   int ui_get_multi_exposure_frames(void);
   int ui_get_multi_exposure_blend_mode(void);
   bool ui_get_multi_exposure_palette_enabled(void);
+  bool ui_get_chroma_palette_enabled(void);
   void ui_show_photo_overlay(const char *text);
 
   void ui_pause_camera_timer(void);

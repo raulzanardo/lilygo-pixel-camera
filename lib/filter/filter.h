@@ -19,5 +19,6 @@ void applyAutoAdjust(camera_fb_t *cameraFb);
 void applyCRT(camera_fb_t *cameraFb, int pixelSize = 1);
 void applyMultipleExposure(camera_fb_t *cameraFb, int frameCount = 4, int blendMode = 0);
 void resetMultipleExposure();
+void applyChromaAberration(camera_fb_t *cameraFb, int shift = 4);
 
 #endif // FILTER_H

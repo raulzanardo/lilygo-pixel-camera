@@ -35,7 +35,8 @@ typedef enum
     CAMERA_FILTER_COLOR_PALETTE,
     CAMERA_FILTER_EDGE,
     CAMERA_FILTER_CRT,
-    CAMERA_FILTER_MULTI_EXPOSURE
+    CAMERA_FILTER_MULTI_EXPOSURE,
+    CAMERA_FILTER_CHROMA_ABERRATION
 } camera_filter_t;
 
 typedef struct
@@ -81,6 +82,8 @@ static lv_obj_t *ui_MultiExposureFramesDropdown = NULL;
 static lv_obj_t *ui_MultiExposureBlendDropdown = NULL;
 static lv_obj_t *ui_MultiExposurePaletteRow = NULL;
 static lv_obj_t *ui_MultiExposurePaletteSwitch = NULL;
+static lv_obj_t *ui_ChromaPaletteRow = NULL;
+static lv_obj_t *ui_ChromaPaletteSwitch = NULL;
 static lv_obj_t *ui_photo_overlay_label = NULL;
 static lv_obj_t *ui_zoom_label = NULL;
 static lv_obj_t *ui_agc_gain_slider = NULL;
@@ -104,6 +107,7 @@ static int current_palette_pixel_ui = 1;
 static int current_multi_exposure_frames = 4;
 static int current_multi_exposure_blend_mode = 0;
 static bool current_multi_exposure_palette_enabled = false;
+static bool current_chroma_palette_enabled = false;
 
 static Preferences ui_prefs;
 static bool ui_prefs_ready = false;
@@ -127,6 +131,7 @@ static const char *UI_PREF_PALETTE_PIXEL_UI_KEY = "pal_px_ui";
 static const char *UI_PREF_MULTI_EXPOSURE_FRAMES_KEY = "mx_frames";
 static const char *UI_PREF_MULTI_EXPOSURE_BLEND_KEY = "mx_blend";
 static const char *UI_PREF_MULTI_EXPOSURE_PALETTE_KEY = "mx_palette";
+static const char *UI_PREF_CHROMA_PALETTE_KEY = "ca_palette";
 static const char *UI_PREF_AUTO_ADJUST_KEY = "auto_adjust";
 static const char *UI_PREF_AUTO_LEVELS_KEY = "auto_levels";
 static const char *UI_PREF_DARK_MODE_KEY = "dark_mode";
@@ -693,6 +698,17 @@ static void apply_selected_filter(camera_fb_t *frame)
             applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, current_dithering, current_pixel_size, palette_ui_to_bayer_size(current_palette_bayer_ui), ui_get_auto_levels_enabled());
         }
         break;
+    case CAMERA_FILTER_CHROMA_ABERRATION:
+    {
+        applyChromaAberration(frame);
+        if (current_chroma_palette_enabled)
+        {
+            int palette_size = 0;
+            const uint32_t *palette = get_current_palette(palette_size);
+            applyColorPalette((uint16_t *)frame->buf, frame->width, frame->height, palette, palette_size, current_dithering, current_pixel_size, palette_ui_to_bayer_size(current_palette_bayer_ui), ui_get_auto_levels_enabled());
+        }
+    }
+    break;
     case CAMERA_FILTER_NONE:
     default:
         break;
@@ -727,6 +743,8 @@ static void ui_update_filter_dropdowns()
         break;
     case CAMERA_FILTER_CRT:
         showPixelSize = true;
+        break;
+    case CAMERA_FILTER_CHROMA_ABERRATION:
         break;
     case CAMERA_FILTER_MULTI_EXPOSURE:
         showMultiExposureControls = true;
@@ -783,13 +801,14 @@ static void ui_update_filter_dropdowns()
     flagFn(ui_MultiExposureFramesDropdown, showMultiExposureControls);
     flagFn(ui_MultiExposureBlendDropdown, showMultiExposureControls);
     flagFn(ui_MultiExposurePaletteRow, showMultiExposureControls);
+    flagFn(ui_ChromaPaletteRow, current_filter == CAMERA_FILTER_CHROMA_ABERRATION);
     // Bayer size only when dither controls visible AND algorithm==Bayer
     flagFn(ui_DitherBayerSizeDropdown, showDitherControls && current_dither_algorithm == 1);
 }
 
 void ui_set_filter_mode(int mode)
 {
-    if (mode < CAMERA_FILTER_NONE || mode > CAMERA_FILTER_MULTI_EXPOSURE)
+    if (mode < CAMERA_FILTER_NONE || mode > CAMERA_FILTER_CHROMA_ABERRATION)
     {
         mode = CAMERA_FILTER_NONE;
     }
@@ -829,6 +848,7 @@ int ui_get_dither_bayer_size(void) { return current_dither_bayer_size; }
 int ui_get_multi_exposure_frames(void) { return current_multi_exposure_frames; }
 int ui_get_multi_exposure_blend_mode(void) { return current_multi_exposure_blend_mode; }
 bool ui_get_multi_exposure_palette_enabled(void) { return current_multi_exposure_palette_enabled; }
+bool ui_get_chroma_palette_enabled(void) { return current_chroma_palette_enabled; }
 
 void ui_get_palette(const uint32_t **palette, int *size)
 {
@@ -1544,6 +1564,18 @@ static void ui_event_MultiExposureBlendDropdown(lv_event_t *e)
         ui_prefs.putInt(UI_PREF_MULTI_EXPOSURE_BLEND_KEY, current_multi_exposure_blend_mode);
 }
 
+static void ui_event_ChromaPaletteSwitch(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+        return;
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+        return;
+    current_chroma_palette_enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+    if (ui_prefs_ready)
+        ui_prefs.putBool(UI_PREF_CHROMA_PALETTE_KEY, current_chroma_palette_enabled);
+}
+
 static void ui_event_MultiExposurePaletteSwitch(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
@@ -1640,6 +1672,7 @@ void ui_HomeScreen_screen_init(void)
             current_multi_exposure_frames = clamp_multi_exposure_frames(ui_prefs.getInt(UI_PREF_MULTI_EXPOSURE_FRAMES_KEY, current_multi_exposure_frames));
             current_multi_exposure_blend_mode = clamp_multi_exposure_blend_mode(ui_prefs.getInt(UI_PREF_MULTI_EXPOSURE_BLEND_KEY, current_multi_exposure_blend_mode));
             current_multi_exposure_palette_enabled = ui_prefs.getBool(UI_PREF_MULTI_EXPOSURE_PALETTE_KEY, current_multi_exposure_palette_enabled);
+            current_chroma_palette_enabled = ui_prefs.getBool(UI_PREF_CHROMA_PALETTE_KEY, current_chroma_palette_enabled);
             camera_led_open_flag = ui_prefs.getBool(UI_PREF_FLASH_KEY, camera_led_open_flag);
             current_zoom_level = ui_prefs.getInt(UI_PREF_ZOOM_LEVEL_KEY, 0); // Default to 1x zoom
         }
@@ -1762,7 +1795,7 @@ void ui_HomeScreen_screen_init(void)
 
     lv_dropdown_set_options_static(
         ui_FilterDropdown,
-        "No filter\nPixelate\nDithering\nColor Palette\nEdge detect\nCRT\nMulti Exposure");
+        "No filter\nPixelate\nDithering\nColor Palette\nEdge detect\nCRT\nMulti Exposure\nChroma Aberr.");
     lv_dropdown_set_selected(ui_FilterDropdown, current_filter);
 
     /* Palette dropdown */
@@ -1896,6 +1929,27 @@ void ui_HomeScreen_screen_init(void)
     if (current_multi_exposure_palette_enabled)
         lv_obj_add_state(ui_MultiExposurePaletteSwitch, LV_STATE_CHECKED);
     lv_obj_add_event_cb(ui_MultiExposurePaletteSwitch, ui_event_MultiExposurePaletteSwitch, LV_EVENT_ALL, NULL);
+
+    ui_ChromaPaletteRow = lv_obj_create(ui_filter_column);
+    lv_obj_add_flag(ui_ChromaPaletteRow, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_width(ui_ChromaPaletteRow, LV_PCT(100));
+    lv_obj_set_height(ui_ChromaPaletteRow, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(ui_ChromaPaletteRow, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_ChromaPaletteRow, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_ChromaPaletteRow, 0, 0);
+    lv_obj_set_style_pad_all(ui_ChromaPaletteRow, 0, 0);
+    lv_obj_set_style_pad_column(ui_ChromaPaletteRow, 8, 0);
+    lv_obj_set_flex_flow(ui_ChromaPaletteRow, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ui_ChromaPaletteRow, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *chroma_palette_label = lv_label_create(ui_ChromaPaletteRow);
+    lv_label_set_text(chroma_palette_label, "Use palette");
+
+    ui_ChromaPaletteSwitch = lv_switch_create(ui_ChromaPaletteRow);
+    lv_obj_set_size(ui_ChromaPaletteSwitch, 60, 40);
+    if (current_chroma_palette_enabled)
+        lv_obj_add_state(ui_ChromaPaletteSwitch, LV_STATE_CHECKED);
+    lv_obj_add_event_cb(ui_ChromaPaletteSwitch, ui_event_ChromaPaletteSwitch, LV_EVENT_ALL, NULL);
 
     /* Dithering filter: Algorithm dropdown */
     ui_DitherAlgoDropdown = lv_dropdown_create(ui_filter_column);
@@ -2213,6 +2267,10 @@ void ui_HomeScreen_screen_destroy(void)
     ui_PaletteBayerRow = NULL;
     ui_PaletteBayerPixelDropdown = NULL;
     ui_PaletteBayerSizeDropdown = NULL;
+    ui_MultiExposurePaletteRow = NULL;
+    ui_MultiExposurePaletteSwitch = NULL;
+    ui_ChromaPaletteRow = NULL;
+    ui_ChromaPaletteSwitch = NULL;
     ui_Image1 = NULL;
     ui_status_sd_label = NULL;
     ui_status_batt_label = NULL;

@@ -2042,3 +2042,65 @@ void applyMultipleExposure(camera_fb_t *cameraFb, int frameCount, int blendMode)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Apply chromatic aberration to camera frame buffer.
+ * Shifts the red channel right and the blue channel left by `shift` pixels,
+ * leaving the green channel in place.
+ *
+ * @param cameraFb Pointer to camera frame buffer (RGB565, little-endian)
+ * @param shift Number of pixels to offset each colour channel
+ */
+void applyChromaAberration(camera_fb_t *cameraFb, int shift)
+{
+    if (!cameraFb || shift <= 0)
+        return;
+
+    int width = cameraFb->width;
+    int height = cameraFb->height;
+    uint16_t *frameBuffer = (uint16_t *)cameraFb->buf;
+    size_t pixelCount = (size_t)width * height;
+
+    // Work on a copy so channel reads are independent of writes
+    uint16_t *src = (uint16_t *)heap_caps_malloc(pixelCount * sizeof(uint16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!src)
+        src = (uint16_t *)heap_caps_malloc(pixelCount * sizeof(uint16_t), MALLOC_CAP_DEFAULT | MALLOC_CAP_8BIT);
+    if (!src)
+        return;
+
+    memcpy(src, frameBuffer, pixelCount * sizeof(uint16_t));
+
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            int xRed  = x + shift;
+            int xBlue = x - shift;
+
+            // Clamp to edge
+            if (xRed  >= width)  xRed  = width  - 1;
+            if (xBlue < 0)       xBlue = 0;
+
+            // Read pixels (swap bytes: GC0308 outputs little-endian RGB565)
+            uint16_t pxG    = src[y * width + x];
+            uint16_t pxR    = src[y * width + xRed];
+            uint16_t pxB    = src[y * width + xBlue];
+
+            pxG = (uint16_t)((pxG << 8) | (pxG >> 8));
+            pxR = (uint16_t)((pxR << 8) | (pxR >> 8));
+            pxB = (uint16_t)((pxB << 8) | (pxB >> 8));
+
+            uint8_t r = (uint8_t)((pxR >> 11) & 0x1F);
+            uint8_t g = (uint8_t)((pxG >>  5) & 0x3F);
+            uint8_t b = (uint8_t)( pxB        & 0x1F);
+
+            uint16_t out = ((uint16_t)r << 11) | ((uint16_t)g << 5) | b;
+            out = (uint16_t)((out << 8) | (out >> 8));
+            frameBuffer[y * width + x] = out;
+        }
+    }
+
+    heap_caps_free(src);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
