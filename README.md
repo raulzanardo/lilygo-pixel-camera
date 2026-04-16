@@ -99,6 +99,7 @@ The following ones are from the version I did with a M5Stack cores3 that has a d
 - **Edge Detection**: Sobel operator-based edge detection
 - **CRT Effect**: Retro CRT monitor simulation with RGB channel separation, scanline patterns, and adjustable pixel size
 - **Multi Exposure**: Temporal blend of the last few frames for a ghosted long-exposure look, with adjustable frame count and blend style
+- **Chroma Aberration**: Simulates chromatic aberration by laterally shifting the red and blue channels in opposite directions, with optional color palette post-processing
 
 ### Color Palettes
 
@@ -136,6 +137,7 @@ All user preferences are saved to non-volatile storage (NVS) and automatically r
 - Camera sensor controls (AEC, AEC2, AGC gain, exposure value)
 - Auto-Adjust and Auto Levels toggles
 - Screenshot mode toggle
+- Dark Mode toggle
 
 ## Software Architecture
 
@@ -189,7 +191,7 @@ Edit `platformio.ini` to adjust:
 - **Status Bar**: Battery level (with charging indicator), USB status, and SD card free space
 - **Camera Preview**: Tap to cycle through zoom levels (1x → 2x → 4x); current zoom shown as overlay
 - **FPS Counter**: Real-time frames-per-second display
-- **Filter Dropdown**: Select real-time filter effect (None, Pixelate, Dithering, Color Palette, Edge, CRT, Multi Exposure)
+- **Filter Dropdown**: Select real-time filter effect (None, Pixelate, Dithering, Color Palette, Edge, CRT, Multi Exposure, Chroma Aberration)
 - **Palette Dropdown**: Choose color palette (for Color Palette filter)
 - **Dithering Type**: Off, Floyd-Steinberg, Bayer (for Color Palette filter)
 - **Pixel Size**: 1×1, 2×2, 4×4, or 8×8 blocks (for Pixelate, Color Palette, and CRT filters)
@@ -204,6 +206,7 @@ Edit `platformio.ini` to adjust:
 - **Auto-Gain**: Toggle AGC on/off
 - **Gain**: Manual AGC gain slider (0–30, active when AGC is off; requires restart)
 - **Auto-Adjust**: Toggle automatic image enhancement per-frame
+- **Dark Mode**: Boosts sensor saturation, contrast, brightness, and AE level on the OV3660 for low-light or high-contrast scenes (requires restart)
 
 ### Settings Screen ⚙️
 
@@ -255,6 +258,12 @@ Edit `platformio.ini` to adjust:
 - Block-based RGB channel separation
 - Scanline-rotating pattern (R,G,B → B,R,G → G,B,R)
 - Combined pixelation and color separation effect
+
+**Chroma Aberration Filter**
+
+- Shifts the red channel right and the blue channel left by a fixed pixel offset (default: 4 px)
+- Green channel is read from the original pixel position
+- Optional color palette post-processing (same palette/dithering controls as other palette-capable filters)
 
 ### Camera Configuration
 
