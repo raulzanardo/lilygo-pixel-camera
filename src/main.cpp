@@ -235,9 +235,6 @@ bool sd_format_card()
 
     sd_delete_root_contents();
 
-    // Reset photo counter and saved preferences
-    photo_prefs.putUInt(PHOTO_PREF_KEY, 0);
-    photo_counter = 1;
     return true;
 }
 
