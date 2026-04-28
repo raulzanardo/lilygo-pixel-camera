@@ -53,6 +53,8 @@ extern "C"
   void ui_set_zoom_level(int level);
   bool ui_get_screenshot_mode_enabled(void);
   void ui_set_screenshot_mode_enabled(bool enabled);
+  bool ui_get_easy_mode_enabled(void);
+  void ui_set_easy_mode_enabled(bool enabled);
   bool ui_get_dark_mode_enabled(void);
 
 #ifdef __cplusplus

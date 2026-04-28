@@ -14,6 +14,7 @@ static lv_obj_t *ui_settings_storage_switch = NULL;
 static lv_obj_t *ui_settings_auto_adjust_switch = NULL;
 static lv_obj_t *ui_settings_auto_levels_switch = NULL;
 static lv_obj_t *ui_settings_screenshot_switch = NULL;
+static lv_obj_t *ui_settings_easy_mode_switch = NULL;
 static lv_obj_t *ui_settings_back_btn = NULL;
 static lv_obj_t *ui_settings_format_sd_btn = NULL;
 
@@ -68,6 +69,23 @@ static void ui_settings_screenshot_event(lv_event_t *e)
 
     bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
     ui_set_screenshot_mode_enabled(enabled);
+}
+
+static void ui_settings_easy_mode_event(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED)
+    {
+        return;
+    }
+
+    lv_obj_t *target = lv_event_get_target(e);
+    if (!target)
+    {
+        return;
+    }
+
+    bool enabled = lv_obj_has_state(target, LV_STATE_CHECKED);
+    ui_set_easy_mode_enabled(enabled);
 }
 
 static void ui_settings_format_sd_confirm_event(lv_event_t *e)
@@ -322,6 +340,30 @@ static void build_settings_screen()
     }
     lv_obj_set_size(ui_settings_screenshot_switch, 60, 40);
     lv_obj_add_event_cb(ui_settings_screenshot_switch, ui_settings_screenshot_event, LV_EVENT_ALL, NULL);
+
+    // easy mode toggle
+    lv_obj_t *easy_mode_row = lv_obj_create(ui_settings_screen);
+    lv_obj_set_width(easy_mode_row, LV_PCT(100));
+    lv_obj_set_height(easy_mode_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(easy_mode_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(easy_mode_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(easy_mode_row, 0, 0);
+    lv_obj_set_style_pad_all(easy_mode_row, 0, 0);
+    lv_obj_set_style_pad_row(easy_mode_row, 8, 0);
+    lv_obj_set_style_pad_column(easy_mode_row, 8, 0);
+    lv_obj_set_flex_flow(easy_mode_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(easy_mode_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *easy_mode_label = lv_label_create(easy_mode_row);
+    lv_label_set_text(easy_mode_label, "Easy mode");
+
+    ui_settings_easy_mode_switch = lv_switch_create(easy_mode_row);
+    if (ui_get_easy_mode_enabled())
+    {
+        lv_obj_add_state(ui_settings_easy_mode_switch, LV_STATE_CHECKED);
+    }
+    lv_obj_set_size(ui_settings_easy_mode_switch, 60, 40);
+    lv_obj_add_event_cb(ui_settings_easy_mode_switch, ui_settings_easy_mode_event, LV_EVENT_ALL, NULL);
 
     // format SD card button
     lv_obj_t *format_sd_row = lv_obj_create(ui_settings_screen);

@@ -137,6 +137,17 @@ static const char *UI_PREF_AUTO_LEVELS_KEY = "auto_levels";
 static const char *UI_PREF_DARK_MODE_KEY = "dark_mode";
 static const char *UI_PREF_ZOOM_LEVEL_KEY = "zoom_level";
 static const char *UI_PREF_SCREENSHOT_KEY = "screenshot_mode";
+static const char *UI_PREF_EASY_MODE_KEY = "easy_mode";
+static lv_obj_t *ui_easy_controls_row = NULL;
+static lv_obj_t *ui_easy_palette_btn_label = NULL;
+static lv_obj_t *ui_easy_dither_btn_label = NULL;
+static lv_obj_t *ui_nav_spacer = NULL;
+static lv_obj_t *ui_nav_row = NULL;
+static lv_obj_t *ui_easy_tips_row = NULL;
+static bool current_easy_mode = false;
+
+static void ui_apply_easy_mode_layout();
+static void ui_update_easy_controls_labels();
 
 static uint8_t *camera_canvas_buf = NULL;
 static size_t camera_canvas_buf_size = 0;
@@ -163,6 +174,33 @@ static const palette_option_t kPaletteOptions[] = {
     {PALETTE_RGB, PALETTE_RGB_SIZE},
     {PALETTE_ELEVATE, PALETTE_ELEVATE_SIZE}};
 static const uint8_t kPaletteOptionCount = sizeof(kPaletteOptions) / sizeof(kPaletteOptions[0]);
+static const char *kPaletteOptionNames[] = {
+    "Sunset",
+    "Yellow/Brown",
+    "Grayscale",
+    "Game Boy",
+    "Cyberpunk",
+    "Autumn",
+    "Ocean",
+    "Desert",
+    "Sakura",
+    "Mint",
+    "Fire",
+    "Arctic",
+    "Sepia",
+    "Neon",
+    "Black & White",
+    "CGA 4-color",
+    "VGA 16-color",
+    "Fresta",
+    "RGB",
+    "Elevate"};
+static const char *kDitherOptionNames[] = {
+    "Off",
+    "Floyd",
+    "Bayer",
+    "Sierra",
+    "Atkinson"};
 
 static int32_t onWrite(uint32_t lba, uint32_t offset, uint8_t *buffer, uint32_t bufsize)
 {
@@ -867,6 +905,21 @@ void ui_set_palette_index(int idx)
     {
         ui_prefs.putInt(UI_PREF_PALETTE_KEY, current_palette_index);
     }
+    ui_update_easy_controls_labels();
+}
+
+static void ui_update_easy_controls_labels()
+{
+    if (ui_easy_palette_btn_label)
+    {
+        int idx = clamp_palette_index(current_palette_index);
+        lv_label_set_text_fmt(ui_easy_palette_btn_label, "Palette\n%s", kPaletteOptionNames[idx]);
+    }
+    if (ui_easy_dither_btn_label)
+    {
+        int idx = clamp_dither_type(current_dithering);
+        lv_label_set_text_fmt(ui_easy_dither_btn_label, "Dither\n%s", kDitherOptionNames[idx]);
+    }
 }
 
 void ui_set_flash_enabled(bool enabled)
@@ -1076,6 +1129,70 @@ void ui_set_screenshot_mode_enabled(bool enabled)
     }
 }
 
+bool ui_get_easy_mode_enabled(void)
+{
+    return current_easy_mode;
+}
+
+void ui_set_easy_mode_enabled(bool enabled)
+{
+    current_easy_mode = enabled;
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putBool(UI_PREF_EASY_MODE_KEY, current_easy_mode);
+    }
+    ui_apply_easy_mode_layout();
+}
+
+static void ui_apply_easy_mode_layout()
+{
+    if (!ui_filter_column || !ui_camera_settings_column || !ui_camera_settings_button || !ui_easy_controls_row || !ui_nav_spacer || !ui_easy_tips_row)
+    {
+        return;
+    }
+
+    if (current_easy_mode)
+    {
+        lv_obj_set_flex_grow(ui_nav_spacer, 1);
+        camera_settings_visible = false;
+        lv_obj_add_flag(ui_filter_column, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(ui_camera_settings_column, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(ui_camera_settings_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(ui_easy_controls_row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(ui_easy_tips_row, LV_OBJ_FLAG_HIDDEN);
+        if (ui_camera_settings_icon)
+        {
+            lv_obj_set_style_text_color(ui_camera_settings_icon, EYE_COLOR_INACTIVE, 0);
+        }
+    }
+    else
+    {
+        lv_obj_set_flex_grow(ui_nav_spacer, 1);
+        lv_obj_clear_flag(ui_camera_settings_button, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(ui_easy_controls_row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(ui_easy_tips_row, LV_OBJ_FLAG_HIDDEN);
+
+        if (camera_settings_visible)
+        {
+            lv_obj_add_flag(ui_filter_column, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(ui_camera_settings_column, LV_OBJ_FLAG_HIDDEN);
+            if (ui_camera_settings_icon)
+            {
+                lv_obj_set_style_text_color(ui_camera_settings_icon, EYE_COLOR_ACTIVE, 0);
+            }
+        }
+        else
+        {
+            lv_obj_clear_flag(ui_filter_column, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(ui_camera_settings_column, LV_OBJ_FLAG_HIDDEN);
+            if (ui_camera_settings_icon)
+            {
+                lv_obj_set_style_text_color(ui_camera_settings_icon, EYE_COLOR_INACTIVE, 0);
+            }
+        }
+    }
+}
+
 static void camera_video_play(lv_timer_t *t)
 {
     static uint32_t last_fps_tick = 0;
@@ -1197,6 +1314,12 @@ static void ui_event_CameraSettingsButton(lv_event_t *e)
         return;
 
     camera_settings_visible = !camera_settings_visible;
+
+    if (current_easy_mode)
+    {
+        camera_settings_visible = false;
+        return;
+    }
 
     if (camera_settings_visible)
     {
@@ -1370,6 +1493,54 @@ static void ui_event_GalleryButton(lv_event_t *e)
     }
 }
 
+static void ui_event_EasyPaletteCycleButton(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+
+    int next_palette = current_palette_index + 1;
+    if (next_palette >= kPaletteOptionCount)
+    {
+        next_palette = 0;
+    }
+
+    ui_set_palette_index(next_palette);
+    if (ui_PaletteDropdown)
+    {
+        lv_dropdown_set_selected(ui_PaletteDropdown, current_palette_index);
+    }
+}
+
+static void ui_event_EasyDitherCycleButton(lv_event_t *e)
+{
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED)
+    {
+        return;
+    }
+
+    int next_dither = current_dithering + 1;
+    if (next_dither > 4)
+    {
+        next_dither = 0;
+    }
+    current_dithering = clamp_dither_type(next_dither);
+
+    if (ui_prefs_ready)
+    {
+        ui_prefs.putInt(UI_PREF_DITHER_KEY, current_dithering);
+    }
+
+    if (ui_DitherDropdown)
+    {
+        lv_dropdown_set_selected(ui_DitherDropdown, current_dithering);
+    }
+
+    ui_update_filter_dropdowns();
+    ui_update_easy_controls_labels();
+}
+
 // event funtions
 void ui_event_Dropdown1(lv_event_t *e)
 {
@@ -1416,6 +1587,7 @@ static void ui_event_DitherDropdown(lv_event_t *e)
         ui_prefs.putInt(UI_PREF_DITHER_KEY, current_dithering);
     }
     ui_update_filter_dropdowns();
+    ui_update_easy_controls_labels();
 }
 
 static void ui_event_PixelSizeDropdown(lv_event_t *e)
@@ -1675,6 +1847,7 @@ void ui_HomeScreen_screen_init(void)
             current_chroma_palette_enabled = ui_prefs.getBool(UI_PREF_CHROMA_PALETTE_KEY, current_chroma_palette_enabled);
             camera_led_open_flag = ui_prefs.getBool(UI_PREF_FLASH_KEY, camera_led_open_flag);
             current_zoom_level = ui_prefs.getInt(UI_PREF_ZOOM_LEVEL_KEY, 0); // Default to 1x zoom
+            current_easy_mode = ui_prefs.getBool(UI_PREF_EASY_MODE_KEY, current_easy_mode);
         }
     }
 
@@ -2179,8 +2352,43 @@ void ui_HomeScreen_screen_init(void)
     /* Hide initially */
     lv_obj_add_flag(ui_camera_settings_column, LV_OBJ_FLAG_HIDDEN);
 
+    ui_easy_controls_row = lv_obj_create(ui_bottom_panel);
+    lv_obj_set_width(ui_easy_controls_row, LV_PCT(100));
+    lv_obj_set_height(ui_easy_controls_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(ui_easy_controls_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_easy_controls_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_easy_controls_row, 0, 0);
+    lv_obj_set_style_pad_all(ui_easy_controls_row, 0, 0);
+    lv_obj_set_style_pad_bottom(ui_easy_controls_row, 10, 0);
+    lv_obj_set_style_pad_column(ui_easy_controls_row, 8, 0);
+    lv_obj_set_flex_flow(ui_easy_controls_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ui_easy_controls_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *easy_palette_button = lv_btn_create(ui_easy_controls_row);
+    lv_obj_set_size(easy_palette_button, 96, 96);
+    lv_obj_set_style_bg_color(easy_palette_button, lv_palette_main(LV_PALETTE_DEEP_ORANGE), 0);
+    lv_obj_set_style_bg_opa(easy_palette_button, LV_OPA_80, 0);
+    lv_obj_set_style_radius(easy_palette_button, 8, 0);
+    ui_easy_palette_btn_label = lv_label_create(easy_palette_button);
+    lv_obj_set_style_text_font(ui_easy_palette_btn_label, &lv_font_montserrat_14, 0);
+    lv_obj_center(ui_easy_palette_btn_label);
+    lv_obj_add_event_cb(easy_palette_button, ui_event_EasyPaletteCycleButton, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *easy_dither_button = lv_btn_create(ui_easy_controls_row);
+    lv_obj_set_size(easy_dither_button, 96, 96);
+    lv_obj_set_style_bg_color(easy_dither_button, lv_palette_main(LV_PALETTE_CYAN), 0);
+    lv_obj_set_style_bg_opa(easy_dither_button, LV_OPA_80, 0);
+    lv_obj_set_style_radius(easy_dither_button, 8, 0);
+    ui_easy_dither_btn_label = lv_label_create(easy_dither_button);
+    lv_obj_set_style_text_font(ui_easy_dither_btn_label, &lv_font_montserrat_14, 0);
+    lv_obj_center(ui_easy_dither_btn_label);
+    lv_obj_add_event_cb(easy_dither_button, ui_event_EasyDitherCycleButton, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_add_flag(ui_easy_controls_row, LV_OBJ_FLAG_HIDDEN);
+    ui_update_easy_controls_labels();
+
     // Spacer to push navigation buttons to the bottom of the right panel
-    lv_obj_t *ui_nav_spacer = lv_obj_create(ui_bottom_panel);
+    ui_nav_spacer = lv_obj_create(ui_bottom_panel);
     lv_obj_clear_flag(ui_nav_spacer, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_opa(ui_nav_spacer, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(ui_nav_spacer, 0, 0);
@@ -2188,7 +2396,7 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_set_height(ui_nav_spacer, 0);
     lv_obj_set_flex_grow(ui_nav_spacer, 1);
 
-    lv_obj_t *ui_nav_row = lv_obj_create(ui_bottom_panel);
+    ui_nav_row = lv_obj_create(ui_bottom_panel);
     lv_obj_set_width(ui_nav_row, LV_PCT(100));
     lv_obj_set_height(ui_nav_row, LV_SIZE_CONTENT);
     lv_obj_clear_flag(ui_nav_row, LV_OBJ_FLAG_SCROLLABLE);
@@ -2243,6 +2451,37 @@ void ui_HomeScreen_screen_init(void)
     lv_obj_center(settings_label);
     lv_obj_add_event_cb(ui_settings_button, ui_event_SettingsButton, LV_EVENT_CLICKED, NULL);
 
+    ui_easy_tips_row = lv_obj_create(ui_bottom_panel);
+    lv_obj_set_width(ui_easy_tips_row, LV_PCT(100));
+    lv_obj_set_height(ui_easy_tips_row, LV_SIZE_CONTENT);
+    lv_obj_clear_flag(ui_easy_tips_row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui_easy_tips_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(ui_easy_tips_row, 0, 0);
+    lv_obj_set_style_pad_all(ui_easy_tips_row, 0, 0);
+    lv_obj_set_style_pad_column(ui_easy_tips_row, 6, 0);
+    lv_obj_set_flex_flow(ui_easy_tips_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(ui_easy_tips_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *tip_left = lv_label_create(ui_easy_tips_row);
+    lv_label_set_text(tip_left, LV_SYMBOL_DOWN " Power");
+    lv_obj_set_style_text_font(tip_left, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(tip_left, lv_color_white(), 0);
+
+    lv_obj_t *tip_right = lv_label_create(ui_easy_tips_row);
+    lv_label_set_text(tip_right, "Photo " LV_SYMBOL_RIGHT);
+    lv_obj_set_style_text_font(tip_right, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(tip_right, lv_color_white(), 0);
+
+    lv_obj_add_flag(ui_easy_tips_row, LV_OBJ_FLAG_HIDDEN);
+
+    // Keep requested visual order in the bottom panel:
+    // easy controls, buttons row, expandable spacer, bottom tips.
+    lv_obj_move_to_index(ui_easy_controls_row, 2);
+    lv_obj_move_to_index(ui_nav_row, 3);
+    lv_obj_move_to_index(ui_nav_spacer, 4);
+
+    ui_apply_easy_mode_layout();
+
     // Status bar update timer (every 2 seconds)
     status_timer = lv_timer_create(status_timer_cb, 2000, NULL);
     lv_timer_ready(status_timer);
@@ -2271,6 +2510,12 @@ void ui_HomeScreen_screen_destroy(void)
     ui_MultiExposurePaletteSwitch = NULL;
     ui_ChromaPaletteRow = NULL;
     ui_ChromaPaletteSwitch = NULL;
+    ui_easy_controls_row = NULL;
+    ui_easy_palette_btn_label = NULL;
+    ui_easy_dither_btn_label = NULL;
+    ui_nav_spacer = NULL;
+    ui_nav_row = NULL;
+    ui_easy_tips_row = NULL;
     ui_Image1 = NULL;
     ui_status_sd_label = NULL;
     ui_status_batt_label = NULL;
